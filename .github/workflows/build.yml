@@ -46,6 +46,19 @@ on:
 
 env:
   # ------------------------------------------------------------------
+  # vcpkg GitHub Actions binary cache
+  # ------------------------------------------------------------------
+  # Tells vcpkg to upload / download per-port binary packages straight
+  # to the GitHub Actions cache backend ("x-gha").  Without this var,
+  # `lukka/run-vcpkg` falls back to caching the entire C:\vcpkg tree as
+  # one giant blob keyed on workflow file hashes — every yml edit blows
+  # the key and rebuilds libvpx/libyuv/opus/aom from scratch (~30 min).
+  # With "x-gha" each port keeps its own hash and is reused as long as
+  # the source recipe and triplet are unchanged, even if the workflow
+  # text drifts.
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+
+  # ------------------------------------------------------------------
   # Toolchain pins
   # ------------------------------------------------------------------
   RUST_VERSION: "1.75"           # upstream-validated; matches sciter ABI
@@ -80,6 +93,13 @@ jobs:
     name: Generate flutter_rust_bridge
     runs-on: ubuntu-22.04
     steps:
+      - name: Export GitHub Actions cache env (for vcpkg x-gha)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
       - name: Checkout source code
         uses: actions/checkout@v4
         with:
@@ -157,6 +177,22 @@ jobs:
             ./flutter/ios/Runner/bridge_generated.h
 
   # ====================================================================
+  # 0b. RustDeskTempTopMostWindow — third-party Win32 DLL that lets
+  #      the controller force the remote-session window topmost when
+  #      legacy applications fight back.  Compiled once per workflow,
+  #      consumed only by controller-windows.
+  # ====================================================================
+  topmost-window:
+    name: Build RustDeskTempTopMostWindow
+    uses: ./.github/workflows/_topmost.yml
+    with:
+      upload-artifact: true
+      target: windows-2022
+      configuration: Release
+      platform: x64
+      target_version: Windows10
+
+  # ====================================================================
   # 1. RustDesk_Controller — Flutter, Windows x86_64
   #    Default features (NO vhd-bridge / NO controlled-only).  Ships the
   #    flutter desktop runner output as a directory artifact.  No code
@@ -164,11 +200,18 @@ jobs:
   # ====================================================================
   controller-windows:
     name: Controller / Windows x86_64
-    needs: generate-bridge
+    needs: [generate-bridge, topmost-window]
     runs-on: windows-2022
     env:
       VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
     steps:
+      - name: Export GitHub Actions cache env (for vcpkg x-gha)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
       - name: Checkout source code
         uses: actions/checkout@v4
         with:
@@ -284,6 +327,74 @@ jobs:
           # Layout the runner output for upload — same as upstream's release path.
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk
 
+      - name: Bundle usbmmidd_v2 virtual-display driver
+        shell: pwsh
+        run: |
+          # Pulls the same Amyuni IDD package upstream installer ships.
+          # Powers the "create virtual display" feature when the controlled
+          # machine has no real monitor or wants extra screens for remote use.
+          Invoke-WebRequest `
+            -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip `
+            -OutFile usbmmidd_v2.zip
+          Expand-Archive -Path usbmmidd_v2.zip -DestinationPath .
+          # Drop 32-bit binaries we don't need on x86_64 builds.
+          Remove-Item -Path usbmmidd_v2\Win32 -Recurse -ErrorAction SilentlyContinue
+          # Drop installer scripts we never invoke (they require admin and
+          # would only fire from the MSI custom action anyway).
+          Remove-Item -Path `
+            "usbmmidd_v2\deviceinstaller64.exe",`
+            "usbmmidd_v2\deviceinstaller.exe",`
+            "usbmmidd_v2\usbmmidd.bat" `
+            -ErrorAction SilentlyContinue
+          Move-Item -Force .\usbmmidd_v2 .\rustdesk\
+
+      - name: Bundle RustDesk v4 printer driver (with sha256 verification)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          # Optional component — provides the "RustDesk Printer" virtual
+          # printer on the controlled machine that bridges print jobs back
+          # to the controller.  We continue-on-error so a transient hbb_common
+          # release outage doesn't kill the whole build; without these files
+          # rustdesk.exe just logs a warning at startup ("printer service
+          # init failed: Failed to load func init") and otherwise runs fine.
+          Invoke-WebRequest `
+            -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/rustdesk_printer_driver_v4-1.4.zip `
+            -OutFile rustdesk_printer_driver_v4-1.4.zip
+          Invoke-WebRequest `
+            -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/printer_driver_adapter.zip `
+            -OutFile printer_driver_adapter.zip
+          Invoke-WebRequest `
+            -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/sha256sums `
+            -OutFile sha256sums
+          $expected_driver  = (Select-String -Path .\sha256sums `
+              -Pattern '^([a-fA-F0-9]{64}) \*rustdesk_printer_driver_v4-1\.4\.zip$').Matches.Groups[1].Value
+          $actual_driver    = (Get-FileHash -Path rustdesk_printer_driver_v4-1.4.zip -Algorithm SHA256).Hash
+          $expected_adapter = (Select-String -Path .\sha256sums `
+              -Pattern '^([a-fA-F0-9]{64}) \*printer_driver_adapter\.zip$').Matches.Groups[1].Value
+          $actual_adapter   = (Get-FileHash -Path printer_driver_adapter.zip -Algorithm SHA256).Hash
+          if ($expected_driver -ieq $actual_driver) {
+            Expand-Archive -Path rustdesk_printer_driver_v4-1.4.zip -DestinationPath .
+            New-Item -ItemType Directory -Path .\rustdesk\drivers -ErrorAction SilentlyContinue | Out-Null
+            Move-Item -Force .\rustdesk_printer_driver_v4-1.4 .\rustdesk\drivers\RustDeskPrinterDriver
+            Write-Host "ok: bundled printer driver package"
+          } else {
+            Write-Host "::warning::printer driver checksum mismatch (expected=$expected_driver actual=$actual_driver), skipping"
+          }
+          if ($expected_adapter -ieq $actual_adapter) {
+            Expand-Archive -Path printer_driver_adapter.zip -DestinationPath .
+            Move-Item -Force .\printer_driver_adapter.dll .\rustdesk\
+            Write-Host "ok: bundled printer driver adapter dll"
+          } else {
+            Write-Host "::warning::printer driver adapter checksum mismatch (expected=$expected_adapter actual=$actual_adapter), skipping"
+          }
+
+      - name: Bundle TempTopMostWindow injection DLL
+        uses: actions/download-artifact@v4
+        with:
+          name: topmostwindow-artifacts
+          path: ./rustdesk/
+
       - name: Verify Build_Prereq_Vars actually injected into binary
         shell: pwsh
         run: |
@@ -349,6 +460,13 @@ jobs:
           - { rust: armv7-linux-androideabi, abi: armeabi-v7a, libdir: arm-linux-androideabi, ndk: ndk_arm.sh }
           - { rust: x86_64-linux-android,  abi: x86_64,       libdir: x86_64-linux-android,  ndk: ndk_x64.sh }
     steps:
+      - name: Export GitHub Actions cache env (for vcpkg x-gha)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
       - name: Checkout source code
         uses: actions/checkout@v4
         with:
@@ -441,6 +559,13 @@ jobs:
     needs: controller-android
     runs-on: ubuntu-22.04
     steps:
+      - name: Export GitHub Actions cache env (for vcpkg x-gha)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
       - name: Checkout source code
         uses: actions/checkout@v4
         with:
@@ -531,6 +656,13 @@ jobs:
     needs: generate-bridge
     runs-on: macos-latest
     steps:
+      - name: Export GitHub Actions cache env (for vcpkg x-gha)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
       - name: Checkout source code
         uses: actions/checkout@v4
         with:
@@ -644,6 +776,13 @@ jobs:
     name: Controlled / Windows + vhd-bridge
     runs-on: windows-2022
     steps:
+      - name: Export GitHub Actions cache env (for vcpkg x-gha)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
       - name: Checkout source code
         uses: actions/checkout@v4
         with:
