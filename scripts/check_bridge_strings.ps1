@@ -269,9 +269,19 @@ $ForbiddenBridgeTokens = @(
 # without depending on incidental implementation details.  Empty
 # matches against any of these mean the controlled flavor lost the
 # bridge code entirely (e.g. feature-flag misconfig).
+#
+# `VHDRustDeskBridgeReportV1` and `VHDRustDeskBridgeLogV1` are
+# intentionally NOT listed here even though they are valid bridge
+# tokens.  Their `ReportFrame` / `LogFrame` constructors and the
+# wrapping `hmac_report` / `hmac_log` helpers are defined in
+# `src/vhd_bridge/{protocol,hmac}.rs` but have no non-test caller
+# yet (the startup-report and structured-log emit paths in
+# `triggers.rs` / `log_sink.rs` are still spec stubs).  Release LTO
+# therefore drops both string literals from the binary, and asserting
+# their presence here would produce false positives until the emit
+# paths are wired up.  When that work lands, add them back.
 $ExpectedControlledTokens = @(
     'VHDRustDeskBridgeHandshakeV1',
-    'VHDRustDeskBridgeReportV1',
     'VHDRustDeskBridgePeerApprovalV1',
     'VHDMount.RustDeskBridge'
 )
