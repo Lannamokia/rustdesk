@@ -1881,7 +1881,15 @@ impl LoginConfigHandler {
             config::option2bool("force-always-relay", &self.get_option("force-always-relay"))
                 || force_relay
                 || use_ws()
-                || Config::is_proxy();
+                || Config::is_proxy()
+                // Lannamokia fork: hard-pin every initiator session to relay
+                // mode.  P2P / UDP-punch paths are intentionally disabled —
+                // operators behind symmetric NATs reported flapping reconnects
+                // when the NAT-type probe wins the race against the bridge's
+                // approval gate.  The "Always Relay" UI toggle and the
+                // `force-always-relay` option therefore become no-ops; flipping
+                // them off cannot reach this OR.
+                || true;
         if let Some((real_id, server, key)) = &self.other_server {
             let other_server_key = self.get_option("other-server-key");
             if !other_server_key.is_empty() && key.is_empty() {
