@@ -115,9 +115,13 @@ jobs:
         run: |
           cargo install cargo-expand --version ${{ env.CARGO_EXPAND_VERSION }} --locked
           cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features "uuid" --locked
-          # Discard committed lock; this older Flutter SDK pins meta 1.12.0
-          # which conflicts with the lock generated on local Flutter 3.32+.
+          # Discard committed lock and the two SDK-incompatible overrides.
+          # Local dev (Flutter 3.32+) needs `matcher: 0.12.19` / `test_api: 0.7.11`
+          # because its flutter_test SDK pins the same versions; the CI Flutter
+          # SDK (3.24.5) pins meta 1.15.0 and rejects test_api 0.7.11 outright.
+          # Without the overrides pub resolves matcher/test_api transitively.
           rm -f flutter/pubspec.lock
+          sed -i -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
           pushd flutter
           # The bridge codegen path inside upstream pinned an older extended_text
           # to keep its analyzer happy.  Mirror that here.
@@ -196,9 +200,14 @@ jobs:
           cd $(dirname $(dirname $(which flutter)))
           [[ "3.24.5" == "${{ env.FLUTTER_VERSION }}" ]] && git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
 
-      - name: Reset flutter/pubspec.lock for CI Flutter SDK
+      - name: Reset flutter/pubspec.lock and SDK-incompatible overrides
         shell: bash
-        run: rm -f flutter/pubspec.lock
+        run: |
+          rm -f flutter/pubspec.lock
+          # Local Flutter 3.32+ flutter_test pins these; CI Flutter 3.24.5 pins
+          # meta 1.15.0 and rejects test_api 0.7.11 — drop the overrides so
+          # pub resolves matcher/test_api transitively from glados/test.
+          sed -i -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@v1
@@ -291,8 +300,10 @@ jobs:
           cd $(dirname $(dirname $(which flutter)))
           [[ "3.24.5" == "${{ env.ANDROID_FLUTTER_VERSION }}" ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
 
-      - name: Reset flutter/pubspec.lock for CI Flutter SDK
-        run: rm -f flutter/pubspec.lock
+      - name: Reset flutter/pubspec.lock and SDK-incompatible overrides
+        run: |
+          rm -f flutter/pubspec.lock
+          sed -i -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
 
       - uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -372,8 +383,10 @@ jobs:
           cd $(dirname $(dirname $(which flutter)))
           [[ "3.24.5" == "${{ env.ANDROID_FLUTTER_VERSION }}" ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
 
-      - name: Reset flutter/pubspec.lock for CI Flutter SDK
-        run: rm -f flutter/pubspec.lock
+      - name: Reset flutter/pubspec.lock and SDK-incompatible overrides
+        run: |
+          rm -f flutter/pubspec.lock
+          sed -i -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
 
       - name: Restore native libraries (all ABIs)
         uses: actions/download-artifact@v4
@@ -455,8 +468,10 @@ jobs:
           cd $(dirname $(dirname $(which flutter)))
           [[ "3.24.5" == "${{ env.FLUTTER_VERSION }}" ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
 
-      - name: Reset flutter/pubspec.lock for CI Flutter SDK
-        run: rm -f flutter/pubspec.lock
+      - name: Reset flutter/pubspec.lock and SDK-incompatible overrides
+        run: |
+          rm -f flutter/pubspec.lock
+          sed -i -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
 
       - name: Setup vcpkg with GitHub Actions binary cache
         uses: lukka/run-vcpkg@v11
