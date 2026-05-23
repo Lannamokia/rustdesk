@@ -103,7 +103,7 @@ RustDesk CI 构建按以下优先级（高优先级在前）解析密钥：
 - **服务端**：`VHDMount`。它持有管道，使用 `CreateNamedPipeW` 创建实例。
 - **客户端**：`RustDesk_Controlled`。使用 `tokio::net::windows::named_pipe::ClientOptions` 连接。
 - **方向**：全双工，请求/响应。客户端发送 Handshake → Report / Log / PeerApproval；服务端发送响应，并**可**主动推送 `Revocation`（§9）。
-- **进程身份校验**：`CreateFile` 成功后，客户端调用 `GetNamedPipeServerProcessId` 解析服务端进程映像路径；如果映像不是预期的 `VHDMount` 二进制，客户端按永久错误（`peer_not_vhdmount`）处理，**进程不重启就不再重试**（Requirement 5.6, 11.2）。
+- **进程身份校验**：`CreateFile` 成功后，客户端调用 `GetNamedPipeServerProcessId` 解析服务端进程映像路径；如果映像基名（case-insensitive）不在接受集合 `{ VHDMounter.exe, VHDMounter_<tag>.exe }` 中（其中 `<tag>` 为非空、可包含字母数字 / `_` / `-` / `.` 等可执行文件常见字符），客户端按永久错误（`peer_not_vhdmount`）处理，**进程不重启就不再重试**（Requirement 5.6, 11.2）。`VHDMount` 团队**可**以 `VHDMounter_<tag>.exe` 形式分发渠道分支（例如 `VHDMounter_LE2025.exe`），上述规则保证客户端无需在新分支上线时重新构建。
 
 ### 2.2 字节序与编码
 

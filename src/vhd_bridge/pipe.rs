@@ -1,6 +1,7 @@
 //! `vhd_bridge::pipe` — `open_and_verify`: connect to the VHDMount
 //! named pipe via `tokio::net::windows::named_pipe::ClientOptions` and
-//! verify the peer process image is `VHDMount.exe`.
+//! verify the peer process image is one of the accepted VHDMounter
+//! binaries.
 //!
 //! Layering (design.md §"命名管道层（pipe.rs）"):
 //!
@@ -13,8 +14,11 @@
 //!     path.
 //!  2. Once connected we resolve the *server* PID with
 //!     `GetNamedPipeServerProcessId` and the executable path with
-//!     `QueryFullProcessImageNameW`, comparing the file name with
-//!     `VHDMount.exe` ASCII-case-insensitively (Requirement 10.5).
+//!     `QueryFullProcessImageNameW`, comparing the file name against
+//!     the accepted set: `VHDMounter.exe` plus the suffixed family
+//!     `VHDMounter_<tag>.exe` (e.g. `VHDMounter_LE2025.exe`),
+//!     ASCII-case-insensitively (Requirement 10.5; rule encoded in
+//!     `is_expected_peer_image`).
 //!  3. On image mismatch the client is `shutdown()` (literal spec
 //!     wording) and dropped — `NamedPipeClient` closes its handle on
 //!     drop; the explicit `shutdown` is a flush + half-close marker
@@ -63,10 +67,34 @@ const ERROR_PIPE_BUSY: i32 = 231;
 /// busy-spinning cannot escape `request_timeout_ms`.
 const PIPE_BUSY_RETRY: Duration = Duration::from_millis(50);
 
-/// File name the peer process image MUST resolve to. Comparison is
-/// ASCII-case-insensitive because Windows file systems are
-/// case-insensitive.
-const EXPECTED_IMAGE_FILE_NAME: &str = "VHDMount.exe";
+/// Peer-image acceptance rule.  Matches both the canonical name
+/// `VHDMounter.exe` and the suffix family `VHDMounter_<tag>.exe`
+/// (e.g. `VHDMounter_LE2025.exe`) ASCII-case-insensitively.  The
+/// `_<tag>` part MUST be non-empty so that bare `VHDMounter_.exe`
+/// or anything that just *starts with* `VHDMounter` (e.g.
+/// `VHDMounterMalicious.exe`) still gets rejected.
+///
+/// Windows file systems are case-insensitive, so the comparison is
+/// ASCII-case-insensitive across the whole string.
+fn is_expected_peer_image(file_name: &str) -> bool {
+    const PREFIX: &str = "VHDMounter";
+    const SUFFIX: &str = ".exe";
+
+    if file_name.len() < PREFIX.len() + SUFFIX.len() {
+        return false;
+    }
+    let lower = file_name.to_ascii_lowercase();
+    let prefix_lower = PREFIX.to_ascii_lowercase();
+    let suffix_lower = SUFFIX.to_ascii_lowercase();
+
+    if !lower.starts_with(&prefix_lower) || !lower.ends_with(&suffix_lower) {
+        return false;
+    }
+    // Carve out the middle segment between PREFIX and SUFFIX.
+    let middle = &lower[prefix_lower.len()..lower.len() - suffix_lower.len()];
+    // Two acceptable shapes: empty (= VHDMounter.exe) or `_<non-empty>`.
+    middle.is_empty() || (middle.starts_with('_') && middle.len() > 1)
+}
 
 /// Buffer size for `QueryFullProcessImageNameW`. Matches
 /// `src/platform/windows.rs::get_process_executable_path`. 32 KiB
@@ -86,7 +114,8 @@ pub(super) enum ConnectError {
     /// `ClientOptions::open` did not return within `timeout_ms`,
     /// including time spent in the `ERROR_PIPE_BUSY` retry loop.
     Timeout,
-    /// Peer pipe-server image is not `VHDMount.exe`. Treated as
+    /// Peer pipe-server image is not in the accepted VHDMounter set
+    /// (`VHDMounter.exe` or `VHDMounter_<tag>.exe`).  Treated as
     /// permanent — re-verifying immediately would just race the same
     /// process again.
     PeerNotVhdMount,
@@ -101,7 +130,7 @@ impl From<io::Error> for ConnectError {
 /// Open the named pipe at `pipe_name` (e.g.
 /// `\\.\pipe\VHDMount.RustDeskBridge`) and return a connected
 /// [`NamedPipeClient`] only after verifying the server process is
-/// `VHDMount.exe`.
+/// an accepted `VHDMounter*.exe` binary (see `is_expected_peer_image`).
 ///
 /// `timeout_ms` is the upper bound on the *entire* connect attempt,
 /// including any `ERROR_PIPE_BUSY` retries. The worker passes
@@ -140,9 +169,10 @@ pub(super) async fn open_and_verify(
 
     // Debug-only test hook: integration tests in `tests/` host the
     // pipe server inside the test binary itself, whose image basename
-    // is never `VHDMount.exe`. The end-to-end test (task 22.1) flips
-    // this gate so the worker can complete a real handshake against a
-    // mock server. The whole branch is `#[cfg(debug_assertions)]`
+    // never matches the accepted VHDMounter set. The end-to-end test
+    // (task 22.1) flips this gate so the worker can complete a real
+    // handshake against a mock server. The whole branch is
+    // `#[cfg(debug_assertions)]`
     // so release builds (whose `[profile.release]` defaults
     // `debug-assertions = false`) never even compile the check —
     // production cannot disable Requirement 10.5.
@@ -156,7 +186,7 @@ pub(super) async fn open_and_verify(
     // Requirement 10.5 is satisfied because no other call site of this
     // function exists.
     match peer_server_pid(&client).and_then(peer_image_file_name) {
-        Ok(name) if name.eq_ignore_ascii_case(EXPECTED_IMAGE_FILE_NAME) => Ok(client),
+        Ok(name) if is_expected_peer_image(&name) => Ok(client),
         Ok(_) => {
             // Image mismatch is the §10.5 permanent-error case. Spec
             // wording is "立即 shutdown() 并返回 ConnectError::PeerNotVhdMount";
@@ -218,13 +248,15 @@ fn peer_server_pid(client: &NamedPipeClient) -> Result<u32, ConnectError> {
     Ok(pid)
 }
 
-/// Resolve the peer image's *file name* (e.g. `VHDMount.exe`) given a
+/// Resolve the peer image's *file name* (e.g. `VHDMounter.exe`) given a
 /// PID.
 ///
 /// We deliberately return the file name only, not the full path:
 ///  * Requirement 10.5 specifies `进程映像路径校验` with the comparison
-///    target being `VHDMount.exe` — the install location is not part
-///    of the contract, only the executable basename.
+///    target being a member of the accepted VHDMounter set
+///    (`VHDMounter.exe` / `VHDMounter_<tag>.exe`) — the install
+///    location is not part of the contract, only the executable
+///    basename.
 ///  * Logs that record this value via §12.x are already constrained to
 ///    discrete reason codes; a full path would risk leaking a username
 ///    in `C:\Users\<name>\...` if VHDMount were ever sideloaded.
@@ -288,7 +320,8 @@ fn peer_image_file_name(pid: u32) -> Result<String, ConnectError> {
 // The end-to-end integration test in `tests/vhd_bridge_integration.rs`
 // hosts the named-pipe server inside the test binary itself, whose
 // image basename is whatever cargo named the test executable —
-// never `VHDMount.exe`. Without this hook the worker's first connect
+// never matches the accepted VHDMounter set.  Without this hook
+// the worker's first connect
 // attempt would map every reply to `ConnectError::PeerNotVhdMount`
 // and the worker would walk straight into a permanent `Failed`
 // state, making the handshake / peer-approval round-trips
@@ -321,7 +354,7 @@ fn test_skip_peer_check() -> bool {
 
 /// Debug-build-only test hook: ask `open_and_verify` to skip the
 /// `GetNamedPipeServerProcessId` + `QueryFullProcessImageNameW` /
-/// `VHDMount.exe` basename check on subsequent connect attempts.
+/// VHDMounter-basename check on subsequent connect attempts.
 ///
 /// Production callers SHALL NOT use this — release builds compile
 /// `debug_assertions = false`, which strips both this function and
@@ -346,7 +379,7 @@ pub(crate) fn set_test_skip_peer_check(on: bool) {
 //                            server (which wraps `CreateNamedPipeW`); the
 //                            test binary itself plays the role of the
 //                            "fake" peer because its image basename is
-//                            never `VHDMount.exe`.
+//                            never a member of the accepted VHDMounter set.
 //   * "立即 EOF"        → `ConnectError::Io(BrokenPipe)`
 //                          — see `immediate_eof_maps_to_io_brokenpipe`,
 //                            which is `#[ignore]`d. Today's
@@ -371,7 +404,7 @@ mod tests {
 
     use hbb_common::tokio::{self, net::windows::named_pipe::ServerOptions, time};
 
-    use super::{open_and_verify, ConnectError};
+    use super::{is_expected_peer_image, open_and_verify, ConnectError};
 
     /// Build a per-test pipe path that is unique across concurrent
     /// `cargo test` runs and across re-runs of the same binary. PID +
@@ -421,7 +454,8 @@ mod tests {
     /// `ServerOptions::create` (which wraps `CreateNamedPipeW`). The
     /// pipe-server PID is therefore the test binary itself, whose
     /// image basename is something like `vhd_bridge-<hash>.exe` or
-    /// `rustdesk-<hash>.exe`, never `VHDMount.exe`. `open_and_verify`
+    /// `rustdesk-<hash>.exe`, never matches the accepted VHDMounter set.
+    /// `open_and_verify`
     /// MUST reject with `PeerNotVhdMount` per Requirement 10.5; the
     /// worker (task 7.2) translates that into a permanent `Failed`
     /// state per Requirement 9.5, which is asserted by Property 7 in
@@ -483,5 +517,42 @@ mod tests {
     #[ignore = "BrokenPipe path lives in the worker read loop (tasks 7.2 / 7.6)"]
     async fn immediate_eof_maps_to_io_brokenpipe() {
         // Intentionally empty — see doc comment above.
+    }
+
+    /// Acceptance rule for the peer-image basename — synchronous /
+    /// no Win32 calls, so it lives next to `is_expected_peer_image`
+    /// itself rather than in the worker integration tests.
+    ///
+    /// Pins Requirement 10.5 plus the operator-side relaxation that
+    /// ships VHDMounter as either a canonical `VHDMounter.exe` or a
+    /// suffixed `VHDMounter_<tag>.exe` (e.g. `VHDMounter_LE2025.exe`).
+    /// Anything outside this set MUST be rejected so the worker
+    /// continues to walk the permanent-`Failed` path through
+    /// `ConnectError::PeerNotVhdMount`.
+    #[test]
+    fn peer_image_acceptance_rule() {
+        // Accepted shapes.
+        assert!(is_expected_peer_image("VHDMounter.exe"));
+        assert!(is_expected_peer_image("VHDMounter_LE2025.exe"));
+        assert!(is_expected_peer_image("VHDMounter_x64.exe"));
+        assert!(is_expected_peer_image("VHDMounter_v1.exe"));
+        // Case-insensitivity (Windows file system convention).
+        assert!(is_expected_peer_image("vhdmounter.exe"));
+        assert!(is_expected_peer_image("VHDMOUNTER_LE2025.EXE"));
+        assert!(is_expected_peer_image("VhdMounter_Tag.Exe"));
+
+        // Rejected: legacy spelling.
+        assert!(!is_expected_peer_image("VHDMount.exe"));
+        // Rejected: prefix-substring confusables.
+        assert!(!is_expected_peer_image("VHDMounterMalicious.exe"));
+        assert!(!is_expected_peer_image("EvilVHDMounter.exe"));
+        // Rejected: empty suffix tag.
+        assert!(!is_expected_peer_image("VHDMounter_.exe"));
+        // Rejected: wrong extension.
+        assert!(!is_expected_peer_image("VHDMounter.dll"));
+        assert!(!is_expected_peer_image("VHDMounter_x64"));
+        // Rejected: empty / too short.
+        assert!(!is_expected_peer_image(""));
+        assert!(!is_expected_peer_image(".exe"));
     }
 }

@@ -161,7 +161,7 @@
 - [x] 6. 实现命名管道层与对端进程身份校验
   - [x] 6.1 在 `pipe.rs` 实现 `open_and_verify`
     - 用 `tokio::time::timeout(Duration::from_millis(timeout_ms), tokio::net::windows::named_pipe::ClientOptions::new().open(pipe_name))` 控制连接耗时；超时翻译成 `ConnectError::Timeout`
-    - 连接成功后立刻调用 `windows::Win32::System::Pipes::GetNamedPipeServerProcessId` 拿对端 PID，再用 `windows::Win32::System::Threading::QueryFullProcessImageNameW` 拿映像路径，校验文件名为 `VHDMount.exe`
+    - 连接成功后立刻调用 `windows::Win32::System::Pipes::GetNamedPipeServerProcessId` 拿对端 PID，再用 `windows::Win32::System::Threading::QueryFullProcessImageNameW` 拿映像路径，校验文件名属于接受集合 `{ VHDMounter.exe, VHDMounter_<tag>.exe }`（其中 `<tag>` 非空，case-insensitive；判定函数 `is_expected_peer_image`）
     - 校验失败立即 `shutdown()` 并返回 `ConnectError::PeerNotVhdMount`，不在没有打开管道的代码路径上额外触发对端校验
     - SHALL 使用现有 Tokio 运行时；SHALL NOT 引入 `interprocess` / `parity-tokio-ipc` 等 crate
     - _Requirements: 2.1, 2.2, 2.3, 10.5, 13.2, 13.3_

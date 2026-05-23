@@ -304,7 +304,7 @@ async fn open_and_verify(pipe_name: &str, timeout_ms: u32)
 实现要点：
 
 1. `tokio::time::timeout(Duration::from_millis(timeout_ms), ClientOptions::new().open(pipe_name))` 限制连接耗时；`Err` 走 §9.1 重试。
-2. 连接成功后立刻 `GetNamedPipeServerProcessId` 拿对端 PID，再用 `windows::Win32::System::Threading::QueryFullProcessImageNameW` 拿映像路径，校验文件名为 `VHDMount.exe`；可选 Authenticode 签名链校验作为后续增强。
+2. 连接成功后立刻 `GetNamedPipeServerProcessId` 拿对端 PID，再用 `windows::Win32::System::Threading::QueryFullProcessImageNameW` 拿映像路径，校验文件名属于接受集合 `{ VHDMounter.exe, VHDMounter_<tag>.exe }`（其中 `<tag>` 非空，case-insensitive；判定函数 `is_expected_peer_image`）；可选 Authenticode 签名链校验作为后续增强。
 3. 校验失败立即 `shutdown()` 并返回 `ConnectError::PeerNotVhdMount`，由 worker 翻译成永久型错误 → `Failed`（Requirement 10.5）。
 4. **不在没有打开管道的代码路径上做对端校验**——把校验耦合到连接生命周期上，避免 `current_state()` 等只读 API 触发额外 syscall。
 

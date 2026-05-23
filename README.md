@@ -299,7 +299,7 @@ Remove-Item -Recurse -Force "$env:APPDATA\RustDesk"     -ErrorAction SilentlyCon
 
 ### Notes on the `vhd-bridge` named-pipe peer
 
-When the `vhd-bridge` feature is on (which it is in the `controlled-windows` artifact), `rustdesk.exe --server` will look for `VHDMount.exe` listening on `\\.\pipe\VHDMount.RustDeskBridge` (see [docs/vhd-rustdesk-bridge-protocol.md](docs/vhd-rustdesk-bridge-protocol.md) §2.1). If `VHDMount` is **not** running:
+When the `vhd-bridge` feature is on (which it is in the `controlled-windows` artifact), `rustdesk.exe --server` will look for `VHDMounter.exe` (or any `VHDMounter_<tag>.exe` variant — e.g. `VHDMounter_LE2025.exe`) listening on `\\.\pipe\VHDMount.RustDeskBridge` (see [docs/vhd-rustdesk-bridge-protocol.md](docs/vhd-rustdesk-bridge-protocol.md) §2.1). If no accepted VHDMounter image is running:
 
 - The bridge worker stays in `Bridge_State == Initializing` and retries with backoff (Requirement 13.2 / 13.3).
 - Inbound connections still work &mdash; the §19.8 fallback "password-correct = allow" path applies (no bridge-side approval).

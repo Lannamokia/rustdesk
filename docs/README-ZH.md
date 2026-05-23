@@ -208,7 +208,7 @@ Remove-Item -Recurse -Force "$env:APPDATA\RustDesk"     -ErrorAction SilentlyCon
 
 ### 关于 `vhd-bridge` 命名管道对端
 
-启用 `vhd-bridge` 特性时（`controlled-windows` 产物默认启用），`rustdesk.exe --server` 会去找 `VHDMount.exe` 监听的 `\\.\pipe\VHDMount.RustDeskBridge`（详见 [docs/vhd-rustdesk-bridge-protocol.md](vhd-rustdesk-bridge-protocol.md) §2.1）。如果 `VHDMount` **没有**运行：
+启用 `vhd-bridge` 特性时（`controlled-windows` 产物默认启用），`rustdesk.exe --server` 会去找 `VHDMounter.exe`（或任意 `VHDMounter_<tag>.exe` 分支变体 —— 例如 `VHDMounter_LE2025.exe`）监听的 `\\.\pipe\VHDMount.RustDeskBridge`（详见 [docs/vhd-rustdesk-bridge-protocol.md](vhd-rustdesk-bridge-protocol.md) §2.1）。如果接受集合内的任何 VHDMounter 都没有运行：
 
 - 桥接 worker 停留在 `Bridge_State == Initializing` 并按退避重试（Requirement 13.2 / 13.3）。
 - 入站连接**仍然可用** —— 走 §19.8 的「密码正确 = 允许」回退路径（无桥接侧批准）。
