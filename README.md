@@ -220,6 +220,93 @@ Two paths are supported:
 
 Both `secret.sec` and `vhd_bridge_secret.bin` are listed in `.gitignore` and must never be committed. `scripts/check_bridge_strings.ps1` is the post-build safety net that scans shipped artifacts for plaintext key material.
 
+## Controlled-side deployment
+
+The `controlled-windows` workflow artifact (`rustdesk-controlled-windows-x86_64`) is a standalone `rustdesk.exe` built with `--features vhd-bridge,controlled-only`. The binary still understands the upstream RustDesk CLI surface for the controlled half (`--service`, `--server`, `--install-service`, `--cm`, `--tray`) but refuses every initiator subcommand at startup (`--connect`, `--port-forward`, etc).
+
+### One-time install (recommended)
+
+Run from an elevated PowerShell on the target Windows machine:
+
+```powershell
+# 1. Lay the binary down somewhere stable (NOT %TEMP%, NOT a path with `host=` / `licensed-` substrings — see `src/custom_server.rs`).
+$dst = "C:\Program Files\RustDeskControlled"
+New-Item -ItemType Directory -Force -Path $dst | Out-Null
+Copy-Item .\rustdesk-controlled-windows-x86_64\rustdesk.exe $dst\rustdesk.exe -Force
+
+# 2. Register the Windows service. This calls platform::install_service() which is
+#    the same path the official MSI uses — service name `RustDesk`, ImagePath
+#    `<dst>\rustdesk.exe --service`, start type Automatic, recovery actions set
+#    to "restart on failure" by the install code.
+& "$dst\rustdesk.exe" --install-service
+
+# 3. (Optional) Verify the service is registered and running.
+sc.exe query RustDesk
+sc.exe qc RustDesk
+```
+
+Once installed, every subsequent boot:
+
+1. `services.exe` launches `rustdesk.exe --service` as **LocalSystem**.
+2. The `--service` process spawns `--server` in the active user's session (covers UAC-elevated screens, the lock screen, and fast-user-switching).
+3. The `--server` process owns the named-pipe client to `VHDMount` (when present), the rendezvous connection to your hbbs, and the audio / video / clipboard / input services.
+
+The service has built-in **automatic restart on crash** via the `failure` recovery actions installed by `install_service` &mdash; no external watchdog needed. If you want to confirm or tighten the policy:
+
+```powershell
+# Show current recovery actions
+sc.exe qfailure RustDesk
+# Tighten: restart with 5s delay on every failure for the first 24h
+sc.exe failure RustDesk reset= 86400 actions= restart/5000/restart/5000/restart/5000
+```
+
+### Wiring up your self-hosted hbbs / hbbr
+
+Compile-time injection (recommended, see [Secrets and CI](#secrets-and-ci)) bakes the host / port / public key into the binary so a fresh install connects out-of-the-box. If the artifact you deployed was built with `HBBS_KEY` / `HBBS_HOST` / `HBBR_HOST` GitHub-Actions secrets populated, you do **not** need to touch any setting on the controlled machine.
+
+If you need to point an existing install at a different rendezvous server post-deployment, edit `%APPDATA%\RustDesk\config\RustDesk2.toml` (the per-user options for the active session's `--server` process) **or** issue an IPC option update through `rustdesk.exe --option custom-rendezvous-server <host:port>`. Restart the service afterwards:
+
+```powershell
+sc.exe stop RustDesk
+sc.exe start RustDesk
+```
+
+### Health checks
+
+```powershell
+# Service state.
+sc.exe query RustDesk
+
+# Live logs — the service writes to %ProgramData%\RustDesk\log when running as LocalSystem.
+Get-Content "$env:ProgramData\RustDesk\log\service.log" -Tail 50 -Wait
+
+# Bridge state (only present in vhd-bridge builds, requires VHDMount running).
+# Reads the `vhd-bridge-state` IPC key — see docs/vhd-rustdesk-bridge-protocol.md §11.3 for the error-code vocabulary.
+& "C:\Program Files\RustDeskControlled\rustdesk.exe" --get-option vhd-bridge-state
+
+# Upstream-id-bound peer ID assigned by your hbbs.
+& "C:\Program Files\RustDeskControlled\rustdesk.exe" --get-id
+```
+
+### Uninstall
+
+```powershell
+& "C:\Program Files\RustDeskControlled\rustdesk.exe" --uninstall-service
+Remove-Item -Recurse -Force "C:\Program Files\RustDeskControlled"
+Remove-Item -Recurse -Force "$env:ProgramData\RustDesk" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "$env:APPDATA\RustDesk"     -ErrorAction SilentlyContinue
+```
+
+### Notes on the `vhd-bridge` named-pipe peer
+
+When the `vhd-bridge` feature is on (which it is in the `controlled-windows` artifact), `rustdesk.exe --server` will look for `VHDMount.exe` listening on `\\.\pipe\VHDMount.RustDeskBridge` (see [docs/vhd-rustdesk-bridge-protocol.md](docs/vhd-rustdesk-bridge-protocol.md) §2.1). If `VHDMount` is **not** running:
+
+- The bridge worker stays in `Bridge_State == Initializing` and retries with backoff (Requirement 13.2 / 13.3).
+- Inbound connections still work &mdash; the §19.8 fallback "password-correct = allow" path applies (no bridge-side approval).
+- The `vhd-bridge-state` IPC key reports `vhd.bridge.failed.peer_not_vhdmount` so monitoring can alert.
+
+Configuring / packaging `VHDMount` itself is out of scope for this repo &mdash; it ships separately. See `machine-auth.md` and `.kiro/specs/vhd-machine-auth-bridge/` for the cross-product spec.
+
 ## Repository layout
 
 Bridge-specific:

@@ -126,6 +126,96 @@ cargo test  -p build_support
 
 `secret.sec` 与 `vhd_bridge_secret.bin` 均已加入 `.gitignore`，**严禁提交**。`scripts/check_bridge_strings.ps1` 是构建后兜底扫描，确保产物中无明文密钥泄漏。
 
+## 被控端部署
+
+`controlled-windows` workflow 的产物 `rustdesk-controlled-windows-x86_64` 是用 `--features vhd-bridge,controlled-only` 编出来的独立 `rustdesk.exe`。它仍然支持上游 RustDesk 受控端的全部 CLI（`--service` / `--server` / `--install-service` / `--cm` / `--tray`），但**任何发起方子命令**（`--connect` / `--port-forward` 等）在启动时直接拒绝。
+
+### 一次性安装（推荐）
+
+在目标 Windows 机器上以**管理员身份**打开 PowerShell：
+
+```powershell
+# 1. 把二进制放到一个稳定路径（不要放 %TEMP%，也不要放含 `host=` / `licensed-`
+#    子串的目录 —— 见 src/custom_server.rs，否则会被误解析为自定义服务端配置）。
+$dst = "C:\Program Files\RustDeskControlled"
+New-Item -ItemType Directory -Force -Path $dst | Out-Null
+Copy-Item .\rustdesk-controlled-windows-x86_64\rustdesk.exe $dst\rustdesk.exe -Force
+
+# 2. 注册 Windows 服务。这条命令会调用 platform::install_service() ——
+#    与官方 MSI 安装器走完全相同的路径：服务名 `RustDesk`、ImagePath
+#    `<dst>\rustdesk.exe --service`、启动类型 Automatic、崩溃自动重启。
+& "$dst\rustdesk.exe" --install-service
+
+# 3.（可选）确认服务已注册并已启动。
+sc.exe query RustDesk
+sc.exe qc RustDesk
+```
+
+装好之后，每次开机：
+
+1. `services.exe` 以 **LocalSystem** 启动 `rustdesk.exe --service`。
+2. `--service` 进程在当前活跃用户会话里 spawn `--server`（覆盖 UAC 提权画面、锁屏、用户切换场景）。
+3. `--server` 进程持有：到 `VHDMount` 的命名管道客户端（如有）、到你 hbbs 的 rendezvous 连接、以及音频 / 视频 / 剪贴板 / 输入服务。
+
+### 保活机制
+
+服务**自带崩溃自动重启**（`install_service` 注册时就配好了 `failure` recovery actions）—— 不需要外部看门狗。如果想确认或加严策略：
+
+```powershell
+# 查看当前 recovery actions
+sc.exe qfailure RustDesk
+# 加严：前 24 小时内每次崩溃延迟 5 秒后重启
+sc.exe failure RustDesk reset= 86400 actions= restart/5000/restart/5000/restart/5000
+```
+
+### 对接自托管 hbbs / hbbr
+
+编译期注入（推荐方式，详见[密钥与 CI](#密钥与-ci)）会把 host / 端口 / 公钥写进二进制，新装机开箱即连。如果你部署的产物在打包时正确填了 `HBBS_KEY` / `HBBS_HOST` / `HBBR_HOST` 三个 GitHub Actions Secret，被控端**不需要**任何手动设置。
+
+如果需要把已经装好的实例指向另一个 rendezvous 服务器，可以编辑 `%APPDATA%\RustDesk\config\RustDesk2.toml`（当前活跃用户会话 `--server` 进程的 per-user 配置），或者通过 IPC 下发：
+
+```powershell
+& "C:\Program Files\RustDeskControlled\rustdesk.exe" --option custom-rendezvous-server <host:port>
+sc.exe stop RustDesk
+sc.exe start RustDesk
+```
+
+### 健康检查
+
+```powershell
+# 服务状态
+sc.exe query RustDesk
+
+# 实时日志 —— LocalSystem 模式下日志写在 %ProgramData%\RustDesk\log
+Get-Content "$env:ProgramData\RustDesk\log\service.log" -Tail 50 -Wait
+
+# 桥接状态（仅 vhd-bridge build 暴露，需要 VHDMount 在跑）
+# 读取 `vhd-bridge-state` IPC 键 —— 错误码字典见 docs/vhd-rustdesk-bridge-protocol.md §11.3
+& "C:\Program Files\RustDeskControlled\rustdesk.exe" --get-option vhd-bridge-state
+
+# 由 hbbs 分配的当前 peer ID
+& "C:\Program Files\RustDeskControlled\rustdesk.exe" --get-id
+```
+
+### 卸载
+
+```powershell
+& "C:\Program Files\RustDeskControlled\rustdesk.exe" --uninstall-service
+Remove-Item -Recurse -Force "C:\Program Files\RustDeskControlled"
+Remove-Item -Recurse -Force "$env:ProgramData\RustDesk" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "$env:APPDATA\RustDesk"     -ErrorAction SilentlyContinue
+```
+
+### 关于 `vhd-bridge` 命名管道对端
+
+启用 `vhd-bridge` 特性时（`controlled-windows` 产物默认启用），`rustdesk.exe --server` 会去找 `VHDMount.exe` 监听的 `\\.\pipe\VHDMount.RustDeskBridge`（详见 [docs/vhd-rustdesk-bridge-protocol.md](vhd-rustdesk-bridge-protocol.md) §2.1）。如果 `VHDMount` **没有**运行：
+
+- 桥接 worker 停留在 `Bridge_State == Initializing` 并按退避重试（Requirement 13.2 / 13.3）。
+- 入站连接**仍然可用** —— 走 §19.8 的「密码正确 = 允许」回退路径（无桥接侧批准）。
+- `vhd-bridge-state` IPC 键报 `vhd.bridge.failed.peer_not_vhdmount`，监控可据此告警。
+
+`VHDMount` 自身的配置 / 打包**不属于本仓库范围** —— 它独立分发。完整跨产品规范见 `machine-auth.md` 与 `.kiro/specs/vhd-machine-auth-bridge/`。
+
 ## 许可证与署名
 
 本 fork 沿用上游 RustDesk 的许可证：**GNU Affero General Public License v3.0（AGPL-3.0）**。完整条款见 [`../LICENCE`](../LICENCE)，本 fork **不修改**许可证文本。
