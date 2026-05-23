@@ -142,13 +142,30 @@ function Read-RsPubKeySource {
     if (-not (Test-Path $cfg)) {
         Fail 6 "source file not found: $cfg"
     }
-    $hit = Select-String -Path $cfg `
-        -Pattern '^\s*pub const RS_PUB_KEY:\s*&str\s*=\s*"([^"]+)"' |
-        Select-Object -First 1
-    if (-not $hit) {
-        Fail 6 "could not extract RS_PUB_KEY constant from $cfg"
-    }
-    return $hit.Matches[0].Groups[1].Value
+    # Two definition shapes are accepted:
+    #   1) Plain literal:
+    #        pub const RS_PUB_KEY: &str = "...";
+    #   2) option_env! fallback (the Lannamokia fork shape):
+    #        pub const RS_PUB_KEY: &str = match option_env!("RUSTDESK_RS_PUB_KEY") {
+    #            Some(s) => s,
+    #            None => "...",
+    #        };
+    # Form (2) requires reading the multi-line definition, so use a single
+    # whole-file regex with `Singleline` instead of `Select-String -Pattern`.
+    $text = [System.IO.File]::ReadAllText($cfg)
+    # Form 1
+    $m = [regex]::Match(
+        $text,
+        '(?m)^\s*pub const RS_PUB_KEY:\s*&str\s*=\s*"([^"]+)"\s*;'
+    )
+    if ($m.Success) { return $m.Groups[1].Value }
+    # Form 2 — option_env!("RUSTDESK_RS_PUB_KEY") fallback string
+    $m = [regex]::Match(
+        $text,
+        '(?s)pub const RS_PUB_KEY:\s*&str\s*=\s*match\s+option_env!\(\s*"RUSTDESK_RS_PUB_KEY"\s*\)\s*\{[^}]*?None\s*=>\s*"([^"]+)"'
+    )
+    if ($m.Success) { return $m.Groups[1].Value }
+    Fail 6 "could not extract RS_PUB_KEY constant from $cfg"
 }
 
 # Mirrors libs/build_support::parse_secret_sec — see Requirement 3.12 /
@@ -273,37 +290,40 @@ $rsPubSource = Read-RsPubKeySource -Root $RepoRoot
 $secMap      = Read-SecretSec       -Root $RepoRoot
 
 # ---- Check A: RS_PUB_KEY cross-source consistency ------------------------
+# When HBBS_KEY env (or secret.sec line) is set, libs/hbb_common/build.rs
+# emits  cargo:rustc-env=RUSTDESK_RS_PUB_KEY=<that value>, which
+# config.rs's `option_env!` consumes at compile time.  In that case the
+# binary contains the env value, NOT the source-code fallback literal.
+# Pick the right "expected" value accordingly.
 
-$expected = $env:HBBS_KEY
-$srcLabel = 'HBBS_KEY env'
-if (-not $expected) {
-    if ($secMap.ContainsKey('HBBS Key')) {
-        $expected = $secMap['HBBS Key']
-        $srcLabel = 'secret.sec `HBBS Key` line'
-    }
+$envKey = $env:HBBS_KEY
+$secKey = $null
+if ($secMap.ContainsKey('HBBS Key')) { $secKey = $secMap['HBBS Key'] }
+
+if ($envKey)        { $expected = $envKey;        $srcLabel = 'HBBS_KEY env (compile-injected)' }
+elseif ($secKey)    { $expected = $secKey;        $srcLabel = "secret.sec ``HBBS Key`` line (compile-injected)" }
+else {
+    # No build-time injection — binary must contain the fallback literal
+    # from config.rs.  Cross-source check degenerates to "fallback exists".
+    $expected = $rsPubSource
+    $srcLabel = 'config.rs fallback (no compile-time injection)'
 }
 
-if (-not $expected) {
-    Write-Host "warn: neither HBBS_KEY env nor secret.sec is available; skipping cross-source RS_PUB_KEY check"
-} elseif ($expected -ne $rsPubSource) {
-    Fail 6 ("RS_PUB_KEY in libs/hbb_common/src/config.rs does not match $srcLabel " +
-            "(config.rs='$rsPubSource', expected='$expected')")
-}
-
+# Sanity: whatever we expect, it must be valid base64-32.
 try {
-    $decoded = [Convert]::FromBase64String($rsPubSource)
+    $decoded = [Convert]::FromBase64String($expected)
     if ($decoded.Length -ne 32) {
-        Fail 6 "RS_PUB_KEY decodes to $($decoded.Length) bytes, expected 32"
+        Fail 6 "RS_PUB_KEY ($srcLabel) decodes to $($decoded.Length) bytes, expected 32"
     }
 } catch {
-    Fail 6 "RS_PUB_KEY is not valid base64: $_"
+    Fail 6 "RS_PUB_KEY ($srcLabel) is not valid base64: $_"
 }
-Write-Host "ok: RS_PUB_KEY source is valid base64-32 and matches $srcLabel"
+Write-Host "ok: RS_PUB_KEY source ($srcLabel) is valid base64-32"
 
 # ---- Check A (cont'd): RS_PUB_KEY ASCII present in binary ----------------
 
-if (-not (Test-BinaryContainsAscii -Bytes $bytes -Token $rsPubSource)) {
-    Fail 4 "RS_PUB_KEY ('$rsPubSource') is not present in binary $bin"
+if (-not (Test-BinaryContainsAscii -Bytes $bytes -Token $expected)) {
+    Fail 4 "RS_PUB_KEY ($srcLabel) is not present in binary $bin"
 }
 Write-Host "ok: RS_PUB_KEY ASCII string present in binary"
 
@@ -321,7 +341,9 @@ foreach ($probe in $leakProbes) {
     $k = $probe.key
     if (-not $secMap.ContainsKey($k)) { continue }
     $v = $secMap[$k]
-    if ($probe.allow_if_eq_rs_pub -and $v -eq $rsPubSource) { continue }
+    # `$expected` is the value that's actually compiled into the binary
+    # (env-injected when present, fallback otherwise) — see Check A above.
+    if ($probe.allow_if_eq_rs_pub -and $v -eq $expected) { continue }
     if (Test-BinaryContainsAscii -Bytes $bytes -Token $v) {
         Fail 5 "secret.sec leak: '$k' value present in binary $bin"
     }
