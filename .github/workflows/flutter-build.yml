@@ -125,6 +125,15 @@ jobs:
           cd $(dirname $(dirname $(which flutter)))
           [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]] && git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
 
+      # Discard the committed flutter/pubspec.lock so this CI runner can re-solve
+      # transitive deps with its own (older) Flutter SDK.  Local dev uses
+      # Flutter 3.32+ which pins meta/test_api to versions incompatible with
+      # the 3.24.5 SDK pin (meta 1.12.0).  Letting pub re-solve here is the
+      # cheapest fix; nothing here is meant to be committed back.
+      - name: Reset flutter/pubspec.lock for CI Flutter SDK
+        shell: bash
+        run: rm -f flutter/pubspec.lock
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@v1
         with:
@@ -474,6 +483,10 @@ jobs:
           cd $(dirname $(dirname $(which flutter)))
           [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
 
+      - name: Reset flutter/pubspec.lock for CI Flutter SDK
+        shell: bash
+        run: rm -f flutter/pubspec.lock
+
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@v11
         with:
@@ -652,6 +665,10 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Reset flutter/pubspec.lock for CI Flutter SDK
+        shell: bash
+        run: rm -f flutter/pubspec.lock
 
       - name: Workaround for flutter issue
         shell: bash
@@ -911,6 +928,10 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           [[ "3.24.5" == ${{env.ANDROID_FLUTTER_VERSION}} ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Reset flutter/pubspec.lock for CI Flutter SDK
+        shell: bash
+        run: rm -f flutter/pubspec.lock
 
       - uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -1183,6 +1204,10 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           [[ "3.24.5" == ${{env.ANDROID_FLUTTER_VERSION}} ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Reset flutter/pubspec.lock for CI Flutter SDK
+        shell: bash
+        run: rm -f flutter/pubspec.lock
 
       - name: Restore bridge files
         uses: actions/download-artifact@master
@@ -2020,6 +2045,10 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Reset flutter/pubspec.lock for CI Flutter SDK
+        shell: bash
+        run: rm -f flutter/pubspec.lock
 
       # https://rustdesk.com/docs/en/dev/build/web/
       - name: Build web
