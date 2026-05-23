@@ -229,6 +229,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: controller-windows
+          # Bring the Build_Prereq_Vars into the cache key so changing one of
+          # them invalidates the cached build-script output for hbb_common.
+          # Without this, the first build (run without secrets configured)
+          # produces a cache that subsequent builds (with secrets) reuse,
+          # silently keeping the upstream RS_PUB_KEY / rs-ny.rustdesk.com
+          # defaults inside the binary even though the env vars are present.
+          env-vars: "HBBS_KEY HBBS_HOST HBBR_HOST CARGO CC CFLAGS CXX CMAKE RUST"
 
       - name: Setup vcpkg with GitHub Actions binary cache
         uses: lukka/run-vcpkg@v11
@@ -247,12 +254,76 @@ jobs:
             exit 1
           fi
 
+      - name: Build_Prereq_Vars sanity probe (presence-only)
+        shell: pwsh
+        run: |
+          # Confirms the workflow-level env block has propagated to this step.
+          # Does NOT echo any value — only "set/unset" + length, to avoid logs
+          # leaking secrets even when set-x is later enabled by accident.
+          $names = 'HBBS_KEY','HBBS_HOST','HBBR_HOST'
+          foreach ($n in $names) {
+            $v = [Environment]::GetEnvironmentVariable($n)
+            if ($null -eq $v -or $v.Length -eq 0) {
+              Write-Host "$n : <unset>"
+            } else {
+              Write-Host "$n : <set, length=$($v.Length)>"
+            }
+          }
+
       - name: Build RustDesk (Flutter desktop, debug-signed)
         shell: pwsh
+        env:
+          # Re-export at step scope so cargo (called via build.py -> os.system)
+          # cannot lose them.  GitHub propagates job-level env to every step's
+          # process environment, but explicit step env removes any ambiguity.
+          HBBS_KEY: ${{ env.HBBS_KEY }}
+          HBBS_HOST: ${{ env.HBBS_HOST }}
+          HBBR_HOST: ${{ env.HBBR_HOST }}
         run: |
           python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
           # Layout the runner output for upload — same as upstream's release path.
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk
+
+      - name: Verify Build_Prereq_Vars actually injected into binary
+        shell: pwsh
+        run: |
+          # Check whether the upstream-default RS_PUB_KEY fallback survives
+          # in the produced binary.  If it does, cargo:rustc-env injection
+          # never ran — likely because cargo reused a cached build script
+          # output, or env-var propagation broke somewhere.
+          $exe = "./rustdesk/rustdesk.exe"
+          $dll = "./rustdesk/librustdesk.dll"
+          if (-not (Test-Path $exe)) { Write-Error "rustdesk.exe missing"; exit 1 }
+          # The exe is a small Flutter shell; the real Rust code is in the DLL.
+          $bytes = if (Test-Path $dll) {
+            [System.IO.File]::ReadAllBytes($dll)
+          } else {
+            [System.IO.File]::ReadAllBytes($exe)
+          }
+          $upstream = 'OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw='
+          function Test-Ascii([byte[]]$b, [string]$t) {
+            $needle = [System.Text.Encoding]::ASCII.GetBytes($t)
+            for ($i = 0; $i -le $b.Length - $needle.Length; $i++) {
+              $match = $true
+              for ($j = 0; $j -lt $needle.Length; $j++) {
+                if ($b[$i+$j] -ne $needle[$j]) { $match = $false; break }
+              }
+              if ($match) { return $true }
+            }
+            return $false
+          }
+          $hasUpstream = Test-Ascii $bytes $upstream
+          # We deliberately do NOT search for the user's HBBS_HOST or
+          # HBBS_KEY here — that would echo a secret to logs.  Detecting
+          # the *absence* of the upstream fallback is a sound positive
+          # signal that injection worked.
+          if ($hasUpstream) {
+            Write-Host "::error::upstream RS_PUB_KEY default still present in built binary - build.rs injection did NOT happen on this run"
+            Write-Host "(Most likely cause: cargo reused a cached hbb_common build-script output. The 'rust-cache' step prefix-key is 'controller-windows' and its key is invalidated only when Cargo.lock changes.)"
+            exit 1
+          } else {
+            Write-Host "ok: upstream RS_PUB_KEY default absent from binary - injection appears to have run"
+          }
 
       - name: Upload Controller Windows artifact
         uses: actions/upload-artifact@v4
@@ -344,6 +415,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: controller-android-${{ matrix.target.abi }}
+          env-vars: "HBBS_KEY HBBS_HOST HBBR_HOST CARGO CC CFLAGS CXX CMAKE RUST"
 
       - name: Build native library
         env:
@@ -516,6 +588,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: controller-ios
+          env-vars: "HBBS_KEY HBBS_HOST HBBR_HOST CARGO CC CFLAGS CXX CMAKE RUST"
 
       - name: Build native library
         run: |
@@ -621,6 +694,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: controlled-windows
+          env-vars: "HBBS_KEY HBBS_HOST HBBR_HOST VHD_BRIDGE_SECRET_HEX VHD_BRIDGE_SECRET_B64 VHD_BRIDGE_SECRET_VERSION CARGO CC CFLAGS CXX CMAKE RUST"
 
       - name: Setup vcpkg with GitHub Actions binary cache
         uses: lukka/run-vcpkg@v11
