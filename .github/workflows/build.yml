@@ -29,8 +29,11 @@ name: build
 on:
   workflow_dispatch:
   push:
+    # Feature branches reach CI via their pull_request below; listing them
+    # here as well would double-fire (push + pull_request:synchronize) for
+    # every commit pushed while the PR is open.  master has no incoming PR
+    # against itself, so it stays on the push trigger.
     branches:
-      - feature/vhd-machine-auth-bridge
       - master
     paths-ignore:
       - "docs/**"
@@ -43,6 +46,13 @@ on:
       - "README.md"
       - ".kiro/**"
       - "machine-auth.md"
+
+# Cancel any still-running build when a new commit lands on the same ref.
+# Belt-and-braces against duplicate triggers and saves runner minutes when
+# pushing rapid fix-ups.
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   # ------------------------------------------------------------------
