@@ -1510,14 +1510,15 @@ fn get_after_install(
         })
         .unwrap_or_default();
 
-    format!("
-    chcp 65001
-    reg add HKEY_CLASSES_ROOT\\.{ext} /f
-    {desktop_shortcuts}
-    {start_menu_shortcuts}
-    {reg_printer}
-    reg add HKEY_CLASSES_ROOT\\.{ext}\\DefaultIcon /f
-    reg add HKEY_CLASSES_ROOT\\.{ext}\\DefaultIcon /f /ve /t REG_SZ  /d \"\\\"{exe}\\\",0\"
+    // vhd-machine-auth-bridge §17.1 / Requirement 1.6, 20.6:
+    // controlled-only 形态下 RustDesk 不再充当远控发起方，因此安装阶段
+    // SHALL NOT 注册 `rustdesk:` URL Protocol 与 `.rustdesk` 文件关联
+    // 触发的 `--play` 入口；这两段注册指向 `rustdesk.exe %1` /
+    // `rustdesk.exe --play %1`，是发起方 CLI 的可执行表面。其它注册
+    // （DefaultIcon / 安装快捷方式标记）保留。
+    #[cfg(not(feature = "controlled-only"))]
+    let initiator_uri_reg = format!(
+        "
     reg add HKEY_CLASSES_ROOT\\.{ext}\\shell /f
     reg add HKEY_CLASSES_ROOT\\.{ext}\\shell\\open /f
     reg add HKEY_CLASSES_ROOT\\.{ext}\\shell\\open\\command /f
@@ -1527,7 +1528,20 @@ fn get_after_install(
     reg add HKEY_CLASSES_ROOT\\{ext}\\shell /f
     reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open /f
     reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open\\command /f
-    reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{exe}\\\" \\\"%%1\\\"\"
+    reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{exe}\\\" \\\"%%1\\\"\""
+    );
+    #[cfg(feature = "controlled-only")]
+    let initiator_uri_reg = String::new();
+
+    format!("
+    chcp 65001
+    reg add HKEY_CLASSES_ROOT\\.{ext} /f
+    {desktop_shortcuts}
+    {start_menu_shortcuts}
+    {reg_printer}
+    reg add HKEY_CLASSES_ROOT\\.{ext}\\DefaultIcon /f
+    reg add HKEY_CLASSES_ROOT\\.{ext}\\DefaultIcon /f /ve /t REG_SZ  /d \"\\\"{exe}\\\",0\"
+    {initiator_uri_reg}
     netsh advfirewall firewall add rule name=\"{app_name} Service\" dir=out action=allow program=\"{exe}\" enable=yes
     netsh advfirewall firewall add rule name=\"{app_name} Service\" dir=in action=allow program=\"{exe}\" enable=yes
     {create_service}

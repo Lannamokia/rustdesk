@@ -1,0 +1,11 @@
+[package]
+name = "build_support"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "vhd-machine-auth-bridge: pure helpers shared by build.rs and the build-script integration tests. No external deps; std only."
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]

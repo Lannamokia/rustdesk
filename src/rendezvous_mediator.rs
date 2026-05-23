@@ -804,7 +804,15 @@ impl RendezvousMediator {
             relay_server = provided_by_rendezvous_server;
         }
         if relay_server.is_empty() {
-            relay_server = crate::increase_port(&self.host, 1);
+            // vhd-machine-auth-bridge §1.2b: prefer the compile-time
+            // injected `HBBR_HOST` (RustDeskClient's default relay
+            // endpoint) over the heuristic `host[:port+1]` fallback when
+            // ops have provided one via Build_Prereq_Vars.
+            relay_server = if hbb_common::config::RELAY_SERVER_DEFAULT.is_empty() {
+                crate::increase_port(&self.host, 1)
+            } else {
+                hbb_common::config::RELAY_SERVER_DEFAULT.to_string()
+            };
         }
         relay_server
     }

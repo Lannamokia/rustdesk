@@ -56,3 +56,9 @@ vcpkg_installed
 flutter/lib/generated_plugin_registrant.dart
 libsciter.dylib
 flutter/web/
+
+# vhd-machine-auth-bridge: dev-time secrets — must NEVER be committed.
+# CI builds inject HBBS_KEY / HBBS_HOST / HBBR_HOST / VHD_BRIDGE_SECRET_HEX (or _B64)
+# / VHD_BRIDGE_SECRET_VERSION via masked secret env vars instead.
+secret.sec
+vhd_bridge_secret.bin

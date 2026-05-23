@@ -1276,6 +1276,21 @@ impl<T: InvokeUiSession> Session<T> {
     }
 
     pub fn reconnect(&self, force_relay: bool) {
+        // vhd-machine-auth-bridge §17.2 / Requirements 1.6, 20.1, 20.9:
+        // controlled-only refuses initiator session reconnects. The
+        // outbound chokepoint at `Client::start` already bails, but
+        // we short-circuit here so we do not even spawn the io_loop
+        // thread or churn `connection_round_state`.
+        #[cfg(feature = "controlled-only")]
+        {
+            let _ = force_relay;
+            log::warn!(
+                "vhd_bridge: refused Session::reconnect in controlled-only build"
+            );
+            return;
+        }
+        #[cfg(not(feature = "controlled-only"))]
+        {
         // 1. If current session is connecting, do not reconnect.
         // 2. If the connection is established, send `Data::Close`.
         // 3. If the connection is disconnected, do nothing.
@@ -1304,6 +1319,7 @@ impl<T: InvokeUiSession> Session<T> {
         *lock = Some(std::thread::spawn(move || {
             io_loop(cloned, round);
         }));
+        }
     }
 
     #[cfg(not(feature = "flutter"))]
@@ -1364,6 +1380,19 @@ impl<T: InvokeUiSession> Session<T> {
         password: String,
         remember: bool,
     ) {
+        // vhd-machine-auth-bridge §17.2 / Requirements 1.6, 20.1, 20.9:
+        // controlled-only does not run an initiator io_loop, so the
+        // `Data::Login` carrier never has a consumer. Drop the request
+        // here instead of pushing it into a sender that is `None`.
+        #[cfg(feature = "controlled-only")]
+        {
+            let _ = (os_username, os_password, password, remember);
+            log::warn!(
+                "vhd_bridge: refused Session::login in controlled-only build"
+            );
+            return;
+        }
+        #[cfg(not(feature = "controlled-only"))]
         self.send(Data::Login((os_username, os_password, password, remember)));
     }
 
@@ -1471,6 +1500,20 @@ impl<T: InvokeUiSession> Session<T> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     #[tokio::main(flavor = "current_thread")]
     pub async fn switch_sides(&self) {
+        // vhd-machine-auth-bridge §17.2 / Requirements 1.6, 20.1, 20.7,
+        // 20.9: under controlled-only, role-swap from controlled to
+        // controller would re-establish an outbound session via
+        // `--connect --switch_uuid`. Refuse the entire IPC dance so
+        // the corresponding `Data::SwitchSidesRequest` IPC arm
+        // (already cfg-stripped per §17.3) is never invoked.
+        #[cfg(feature = "controlled-only")]
+        {
+            log::warn!(
+                "vhd_bridge: refused Session::switch_sides in controlled-only build"
+            );
+            return;
+        }
+        #[cfg(not(feature = "controlled-only"))]
         match crate::ipc::connect(1000, "").await {
             Ok(mut conn) => {
                 if conn

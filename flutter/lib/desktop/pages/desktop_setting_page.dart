@@ -953,7 +953,15 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
               }),
             ),
           ),
-          if (mainGetBoolOptionSync(kOptionEnableTrustedDevices))
+          // vhd-machine-auth-bridge §18.3 / Requirement 21.4: under the
+          // `controlled-only` build form the "Manage trusted devices"
+          // entry-point must be unreachable. The Rust side
+          // (`Config::get_trusted_devices` / `add_trusted_device`) is
+          // already a no-op, but we also tree-shake the dialog launcher
+          // here so the i18n string "Manage trusted devices" is not
+          // linked into the controlled-only product.
+          if (!kControlledOnly &&
+              mainGetBoolOptionSync(kOptionEnableTrustedDevices))
             ElevatedButton(
                 onPressed: locked
                     ? null

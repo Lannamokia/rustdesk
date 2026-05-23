@@ -117,6 +117,8 @@ pub const LOGIN_MSG_2FA_WRONG: &str = "Wrong 2FA Code";
 pub const REQUIRE_2FA: &'static str = "2FA Required";
 pub const LOGIN_MSG_NO_PASSWORD_ACCESS: &str = "No Password Access";
 pub const LOGIN_MSG_OFFLINE: &str = "Offline";
+pub const LOGIN_MSG_VHD_APPROVAL_PENDING: &str = "VHD Approval Pending";
+pub const LOGIN_MSG_VHD_APPROVAL_REJECTED: &str = "VHD Approval Rejected";
 pub const LOGIN_SCREEN_WAYLAND: &str = "Wayland login screen is not supported";
 #[cfg(target_os = "linux")]
 pub const SCRAP_UBUNTU_HIGHER_REQUIRED: &str = "ubuntu-21-04-required";
@@ -204,6 +206,28 @@ impl Client {
         ),
         (i32, String),
     )> {
+        // vhd-machine-auth-bridge §17.2 / Requirements 1.6, 20.1, 20.9:
+        // controlled-only chokepoint. Every outbound rendezvous /
+        // direct / relay session is funnelled through this function
+        // (called from `client::io_loop`, `port_forward::listen`,
+        // and `cli`). Refusing here covers all spawn paths even if
+        // the upstream UI / IPC / CLI gates are bypassed. The
+        // function signature is preserved so the unused-but-reachable
+        // shared callers in `io_loop.rs` / `port_forward.rs` /
+        // `cli.rs` continue to type-check; under controlled-only the
+        // session-spawn entry points (Session::reconnect,
+        // flutter::session_*, port_forward::listen) are no-ops or
+        // bail before reaching this call.
+        #[cfg(feature = "controlled-only")]
+        {
+            let _ = (peer, key, token, conn_type, interface);
+            log::warn!(
+                "vhd_bridge: refused initiator Client::start in controlled-only build"
+            );
+            bail!("controlled-only build refuses to act as initiator");
+        }
+        #[cfg(not(feature = "controlled-only"))]
+        {
         debug_assert!(peer == interface.get_id());
         interface.update_direct(None);
         interface.update_received(false);
@@ -230,9 +254,11 @@ impl Client {
                 Ok((x.0, x.1))
             }
         }
+        }
     }
 
     /// Start a new connection.
+    #[cfg_attr(feature = "controlled-only", allow(dead_code))]
     async fn _start(
         peer: &str,
         key: &str,
@@ -366,6 +392,7 @@ impl Client {
         }
     }
 
+    #[cfg_attr(feature = "controlled-only", allow(dead_code))]
     async fn _start_inner(
         peer: String,
         key: String,
@@ -3348,6 +3375,18 @@ lazy_static::lazy_static! {
             msgtype: "wait-remote-accept-nook",
             title: "Prompt",
             text: "Please wait for the remote side to accept your session request...",
+            link: "",
+            try_again: true,
+        }), (LOGIN_MSG_VHD_APPROVAL_PENDING, LoginErrorMsgBox{
+            msgtype: "wait-vhd-approval",
+            title: "Verifying",
+            text: "Waiting for VHDMount to verify your identity",
+            link: "",
+            try_again: true,
+        }), (LOGIN_MSG_VHD_APPROVAL_REJECTED, LoginErrorMsgBox{
+            msgtype: "re-input-password",
+            title: LOGIN_MSG_VHD_APPROVAL_REJECTED,
+            text: "Your identity is not approved by the operator. Please contact ops",
             link: "",
             try_again: true,
         })]);

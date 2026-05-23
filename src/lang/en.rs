@@ -274,5 +274,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("keep-awake-during-incoming-sessions-label", "Keep screen awake during incoming sessions"),
         ("password-hidden-tip", "Permanent password is set (hidden)."),
         ("preset-password-in-use-tip", "Preset password is currently in use."),
+        ("vhd_overlay_title", "Machine Under Remote Maintenance"),
+        ("vhd_overlay_detail", "This computer is currently being remotely operated by an authorised technician. Do not interact with it."),
     ].iter().cloned().collect();
 }

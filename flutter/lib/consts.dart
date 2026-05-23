@@ -211,6 +211,25 @@ const String kUrlActionClose = "close";
 const String kTabLabelHomePage = "Home";
 const String kTabLabelSettingPage = "Settings";
 
+// vhd-machine-auth-bridge §17.6 / Requirement 20.8:
+//
+// Compile-time flag for the `RustDesk_Controlled` build form. Set at
+// build time via `flutter build --dart-define=CONTROLLED_ONLY=true`,
+// and is paired with the Rust-side `controlled-only` cargo feature.
+//
+// When `true`, initiator-only UI surfaces (the right-pane Connection
+// page, the Recent / Favorites / Discovered / Address Book peer tabs,
+// and the corresponding remote / file-transfer / port-forward / view
+// camera / terminal multi-windows) are gated off so their classes and
+// i18n string literals (`"Connect"`, `"Recent sessions"`,
+// `"Address Book"`, ...) become dead code that the Dart AOT compiler
+// tree-shakes out of the final product.
+//
+// The "被发起方" (incoming) surface — server ID / password / settings
+// / Connection Manager / `MaintenanceOverlay` — is unaffected.
+const bool kControlledOnly =
+    bool.fromEnvironment('CONTROLLED_ONLY', defaultValue: false);
+
 const String kWindowPrefix = "wm_";
 const int kWindowMainId = 0;
 

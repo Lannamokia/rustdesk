@@ -63,6 +63,23 @@ Future<void> main(List<String> args) async {
     // Because stateGlobal.windowId is a global value.
     argument['windowId'] = kWindowId;
     kWindowType = type.windowType;
+    // §17.6: under `controlled-only`, refuse to spawn any initiator
+    // multi-window (RemoteDesktop / FileTransfer / ViewCamera /
+    // PortForward / Terminal). Rust-side `--connect` / `--play` /
+    // `--port-forward` / `--file-transfer` / `--view-camera` /
+    // `--terminal` CLI parsing (§17.1) and the `Data::Connect` IPC
+    // handler (§17.3) already gate this — we exit hard here as a
+    // last line of defense in case the subprocess somehow still got
+    // spawned.
+    if (kControlledOnly &&
+        (kWindowType == WindowType.RemoteDesktop ||
+            kWindowType == WindowType.FileTransfer ||
+            kWindowType == WindowType.ViewCamera ||
+            kWindowType == WindowType.PortForward ||
+            kWindowType == WindowType.Terminal)) {
+      debugPrint('controlled-only: refusing initiator window $kWindowType');
+      exit(2);
+    }
     switch (kWindowType) {
       case WindowType.RemoteDesktop:
         desktopType = DesktopType.remote;

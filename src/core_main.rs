@@ -63,7 +63,32 @@ pub fn core_main() -> Option<Vec<String>> {
             ]
             .contains(&arg.as_str())
             {
-                _is_flutter_invoke_new_connection = true;
+                // vhd-machine-auth-bridge §17.1 / Requirement 1.6, 20.6:
+                // controlled-only 形态下，本二进制不再充当远控发起方。
+                // 命中初始化连接的 CLI 子命令立即拒绝并以非零码退出，
+                // 与既有 `--server` / `--service` / `--cm` 受控侧入口互斥。
+                #[cfg(feature = "controlled-only")]
+                {
+                    log::warn!("vhd_bridge: refused initiator subcommand {arg}");
+                    std::process::exit(2);
+                }
+                #[cfg(not(feature = "controlled-only"))]
+                {
+                    _is_flutter_invoke_new_connection = true;
+                }
+            }
+            // vhd-machine-auth-bridge §17.1 / Requirement 1.6, 20.6:
+            // 同步拒绝 `rustdesk:` URI scheme 触发的发起方调用（既包括
+            // Windows URL Protocol 注册 `rustdesk.exe rustdesk://<id>`，也
+            // 包括 Linux dbus 转发路径）。空 URI（无 path）保留为正常启动
+            // 信号，与 `crate::common::is_empty_uni_link` 的语义一致。
+            #[cfg(feature = "controlled-only")]
+            {
+                let uri_prefix = crate::get_uri_prefix();
+                if arg.starts_with(&uri_prefix) && !crate::common::is_empty_uni_link(&arg) {
+                    log::warn!("vhd_bridge: refused initiator URI {arg}");
+                    std::process::exit(2);
+                }
             }
             if arg == "--elevate" {
                 _is_elevate = true;
@@ -112,10 +137,12 @@ pub fn core_main() -> Option<Vec<String>> {
         }
     }
     #[cfg(windows)]
+    #[cfg(not(feature = "controlled-only"))]
     if args.contains(&"--connect".to_string()) || args.contains(&"--view-camera".to_string()) {
         hbb_common::platform::windows::start_cpu_performance_monitor();
     }
     #[cfg(feature = "flutter")]
+    #[cfg(not(feature = "controlled-only"))]
     if _is_flutter_invoke_new_connection {
         return core_main_invoke_new_connection(std::env::args());
     }
@@ -130,6 +157,20 @@ pub fn core_main() -> Option<Vec<String>> {
     if args.len() > 0 {
         if args[0] == "--version" {
             println!("{}", crate::VERSION);
+            // vhd-machine-auth-bridge §1.4 / Requirements 3.7, 3.11, 14.4:
+            // RustDesk_Controlled 形态在 `--version` 输出末尾追加 `secret_version`
+            // 一行，便于发布工程师 diff `VHDMount` 与 RustDesk 的密钥版本。
+            // `vhd-bridge` 关闭时位置不变，取值固定为 `0`；其它形态（主控端 /
+            // 中继服务）整行不出现。SHALL NOT 暴露密钥本体或派生值。
+            #[cfg(feature = "controlled-only")]
+            {
+                #[cfg(feature = "vhd-bridge")]
+                const VHD_BRIDGE_SECRET_VERSION: u32 =
+                    include!(concat!(env!("OUT_DIR"), "/vhd_bridge_secret_version.rs"));
+                #[cfg(not(feature = "vhd-bridge"))]
+                const VHD_BRIDGE_SECRET_VERSION: u32 = 0;
+                println!("vhd-bridge-secret-version={}", VHD_BRIDGE_SECRET_VERSION);
+            }
             return None;
         } else if args[0] == "--build-date" {
             println!("{}", crate::BUILD_DATE);
@@ -162,6 +203,7 @@ pub fn core_main() -> Option<Vec<String>> {
 
     // linux uni (url) go here.
     #[cfg(all(target_os = "linux", feature = "flutter"))]
+    #[cfg(not(feature = "controlled-only"))]
     if args.len() > 0 && args[0].starts_with(&crate::get_uri_prefix()) {
         return try_send_by_dbus(args[0].clone());
     }
@@ -848,6 +890,7 @@ fn import_config(path: &str) {
 /// If it returns [`None`], then the process will terminate, and flutter gui will not be started.
 /// If it returns [`Some`], then the process will continue, and flutter gui will be started.
 #[cfg(feature = "flutter")]
+#[cfg(not(feature = "controlled-only"))]
 fn core_main_invoke_new_connection(mut args: std::env::Args) -> Option<Vec<String>> {
     let mut authority = None;
     let mut id = None;
@@ -926,6 +969,7 @@ fn core_main_invoke_new_connection(mut args: std::env::Args) -> Option<Vec<Strin
 }
 
 #[cfg(all(target_os = "linux", feature = "flutter"))]
+#[cfg(not(feature = "controlled-only"))]
 fn try_send_by_dbus(uni_links: String) -> Option<Vec<String>> {
     use crate::dbus::invoke_new_connection;
 

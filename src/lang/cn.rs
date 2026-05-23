@@ -744,5 +744,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("password-hidden-tip", "永久密码已设置（已隐藏）"),
         ("preset-password-in-use-tip", "当前使用预设密码"),
         ("Enable privacy mode", "允许隐私模式"),
+        ("vhd_overlay_title", "本机正在远程维护中"),
+        ("vhd_overlay_detail", "本机当前正由授权技术人员远程操作，请勿打断或操作本机。"),
     ].iter().cloned().collect();
 }

@@ -477,6 +477,8 @@ pub enum Data {
     ControlPermissionsRemoteModify(Option<bool>),
     #[cfg(target_os = "windows")]
     FileTransferEnabledState(Option<bool>),
+    #[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+    VhdBridgeState(crate::vhd_bridge::BridgeStateSnapshot),
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -825,6 +827,19 @@ async fn handle(data: Data, stream: &mut Connection) {
         Data::Config((name, value)) => match value {
             None => {
                 let value;
+                #[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+                if name == hbb_common::config::keys::VHD_BRIDGE_STATE {
+                    // Read path for the `vhd-bridge-state` observability
+                    // key (Task 13.2 / Requirements 4.5, 12.4, 13.4).
+                    // Read the current snapshot via the OnceLock-backed
+                    // `watch::Receiver::borrow().clone()` and reply with
+                    // its JSON serialization. Synchronous, lock-free,
+                    // non-blocking.
+                    let snapshot = crate::vhd_bridge::current_state();
+                    let json = serde_json::to_string(&snapshot).unwrap_or_default();
+                    allow_err!(stream.send(&Data::Config((name, Some(json)))).await);
+                    return;
+                }
                 if name == "id" {
                     value = Some(Config::get_id());
                 } else if name == "temporary-password" {
@@ -888,6 +903,19 @@ async fn handle(data: Data, stream: &mut Connection) {
             }
             Some(value) => {
                 let mut updated = true;
+                #[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+                if name == hbb_common::config::keys::VHD_BRIDGE_STATE {
+                    // Write path for the `vhd-bridge-state` observability
+                    // key is read-only by contract (Task 13.2 /
+                    // Requirements 4.5, 12.4). Drop the value, log, and
+                    // bail out so the rest of the chain doesn't see it.
+                    log::warn!(
+                        "vhd_bridge: '{}' is a read-only observability key; write rejected",
+                        hbb_common::config::keys::VHD_BRIDGE_STATE
+                    );
+                    let _ = value;
+                    return;
+                }
                 if name == "id" {
                     Config::set_key_confirmed(false);
                     Config::set_id(&value);
@@ -971,8 +999,21 @@ async fn handle(data: Data, stream: &mut Connection) {
             crate::rendezvous_mediator::NEEDS_DEPLOY.store(false, Ordering::SeqCst);
             crate::rendezvous_mediator::RendezvousMediator::restart();
         }
+        // vhd-machine-auth-bridge §17.3 / Requirement 20.7:
+        // The `SwitchSides*` IPC arms turn an existing controlled
+        // session into an outbound controller session (role swap), so
+        // they fall under "establishes a new outbound session". Under
+        // `controlled-only` the receive-side handler arms are stripped
+        // so that no in-process IPC peer can drive this side into
+        // initiator mode; the unmatched messages fall through to the
+        // catch-all `_ => {}` below and are silently dropped. The
+        // variant declarations themselves are preserved per tasks.md
+        // §17.3 ("SHALL NOT 删除变体定义"), so shared sender code in
+        // `ui_session_interface.rs` / `client.rs` / `ui_cm_interface.rs`
+        // (gated separately by task 17.2) still type-checks.
         #[cfg(feature = "flutter")]
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        #[cfg(not(feature = "controlled-only"))]
         Data::SwitchSidesRequest(id) => {
             let uuid = uuid::Uuid::new_v4();
             crate::server::insert_switch_sides_uuid(id, uuid.clone());
@@ -984,6 +1025,7 @@ async fn handle(data: Data, stream: &mut Connection) {
         }
         #[cfg(feature = "flutter")]
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        #[cfg(not(feature = "controlled-only"))]
         Data::SwitchSidesUuid(uuid, id, None) => {
             let allowed = uuid
                 .parse::<uuid::Uuid>()
@@ -1000,11 +1042,27 @@ async fn handle(data: Data, stream: &mut Connection) {
         Data::Plugin(plugin) => crate::plugin::ipc::handle_plugin(plugin, stream).await,
         #[cfg(windows)]
         Data::ControlledSessionCount(_) => {
+            // vhd-machine-auth-bridge (task 15.7 / Requirements 15.2,
+            // 15.3, 15.6): with the bridge feature enabled, the
+            // Flutter `Maintenance_Overlay` must only appear for
+            // connections that survived the §11.4 peer-approval gate.
+            // `alive_conns()` counts every socket the server has
+            // accepted (including pre-auth and rejected peers), which
+            // would leak the overlay to unauthorized peers
+            // (Requirement 15.3). Switch the source of truth to the
+            // authorized-session counter owned by `vhd_bridge`,
+            // which is bumped by `Connection::on_remote_authorized`
+            // and drops via the per-connection RAII guard.
+            //
+            // On builds without `vhd-bridge`, preserve the legacy
+            // behavior so non-bridge deployments are byte-identical.
+            #[cfg(feature = "vhd-bridge")]
+            let count = crate::vhd_bridge::active_session_count();
+            #[cfg(not(feature = "vhd-bridge"))]
+            let count = crate::Connection::alive_conns().len();
             allow_err!(
                 stream
-                    .send(&Data::ControlledSessionCount(
-                        crate::Connection::alive_conns().len()
-                    ))
+                    .send(&Data::ControlledSessionCount(count))
                     .await
             );
         }
@@ -1632,6 +1690,12 @@ async fn set_permanent_password_with_ack_async(v: String) -> ResultType<bool> {
                 if let Err(err) = sync_permanent_password_storage_from_daemon_async().await {
                     log::warn!("Failed to sync permanent password storage from daemon: {err}");
                 }
+                // vhd-machine-auth-bridge (task 9.2 / Requirement 7.4 / 14.6):
+                // observe the daemon-ACKed permanent-password change so the
+                // bridge can ship a fresh `Report_Frame` after the next
+                // 1 s coalescing window.
+                #[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+                crate::vhd_bridge::triggers::notify_password_change();
             }
             return Ok(ok);
         }

@@ -12,6 +12,7 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/connection_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
+import 'package:flutter_hbb/desktop/pages/empty_initiator_page.dart';
 import 'package:flutter_hbb/desktop/widgets/update_progress.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/server_model.dart';
@@ -59,7 +60,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final isIncomingOnly = bind.isIncomingOnly();
+    // §17.6: under `controlled-only`, treat the home page as
+    // incoming-only — the right-pane initiator panel is never built,
+    // so `ConnectionPage` and its peer-tab strings get tree-shaken.
+    final isIncomingOnly = bind.isIncomingOnly() || kControlledOnly;
     return _buildBlock(
         child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,7 +187,13 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   buildRightPane(BuildContext context) {
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
-      child: ConnectionPage(),
+      // §17.6: keep `ConnectionPage` statically unreachable under
+      // `controlled-only` so its tree of peer-tab / connect-bar
+      // children — which would otherwise pull in i18n keys like
+      // "Connect" / "Recent sessions" / "Address Book" — gets
+      // tree-shaken out of the product.
+      child:
+          kControlledOnly ? const EmptyInitiatorPage() : ConnectionPage(),
     );
   }
 
@@ -799,6 +809,16 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       } else if (call.method == kWindowEventHide) {
         await rustDeskWinManager.unregisterActiveWindow(call.arguments['id']);
       } else if (call.method == kWindowConnect) {
+        if (kControlledOnly) {
+          // §17.6: refuse initiator window spawns under
+          // `controlled-only`. The Rust-side `Data::Connect` /
+          // `Data::SwitchSidesRequest` IPC handlers (§17.3) already
+          // reject these requests; this is the corresponding Dart
+          // defense-in-depth check.
+          debugPrint(
+              'controlled-only: ignoring $kWindowConnect (initiator gated)');
+          return null;
+        }
         await connectMainDesktop(
           call.arguments['id'],
           isFileTransfer: call.arguments['isFileTransfer'],

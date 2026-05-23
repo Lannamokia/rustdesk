@@ -77,3 +77,9 @@ pub mod privacy_mode;
 pub mod virtual_display_manager;
 
 mod kcp_stream;
+
+// vhd-machine-auth-bridge: declared unconditionally so external callers
+// can use `vhd_bridge::*` without scattering `#[cfg(...)]`. On non-Windows
+// targets and when the `vhd-bridge` feature is off, the module exposes
+// no-op stubs (see `src/vhd_bridge/mod.rs`).
+pub mod vhd_bridge;

@@ -32,6 +32,11 @@ hwcodec = ["scrap/hwcodec"]
 vram = ["scrap/vram"]
 mediacodec = ["scrap/mediacodec"]
 plugin_framework = []
+# vhd-machine-auth-bridge: 桥接特性，仅在 RustDesk_Controlled 形态默认启用。
+# 主控端 / 中继服务形态保持默认关闭，确保产物不含 HMAC / 共享密钥相关代码。
+vhd-bridge = ["dep:subtle", "dep:zeroize", "hbb_common/vhd-bridge"]
+# vhd-machine-auth-bridge: 发起方裁剪特性。与 vhd-bridge 解耦以便研发期独立验证。
+controlled-only = ["hbb_common/controlled-only"]
 linux-pkg-config = ["magnum-opus/linux-pkg-config", "scrap/linux-pkg-config"]
 unix-file-copy-paste = [
     "dep:x11-clipboard",
@@ -83,6 +88,11 @@ totp-rs = { version = "5.4", default-features = false, features = ["gen_secret",
 stunclient = "0.4"
 kcp-sys= { git = "https://github.com/rustdesk-org/kcp-sys"}
 reqwest = { version = "0.12", features = ["blocking", "socks", "json", "native-tls", "rustls-tls", "rustls-tls-native-roots", "gzip"], default-features=false }
+
+# vhd-machine-auth-bridge: 仅在 vhd-bridge feature 启用时编译进依赖图。
+# subtle 提供恒定时间比较，zeroize 用于 HMAC 输入 / 密码副本缓冲区清零。
+subtle = { version = "2", optional = true }
+zeroize = { version = "1", optional = true }
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 # https://github.com/rustdesk/rustdesk/discussions/10197, not use cpal on linux
@@ -204,7 +214,7 @@ jni = "0.21"
 android-wakelock = { git = "https://github.com/rustdesk-org/android-wakelock" }
 
 [workspace]
-members = ["libs/scrap", "libs/hbb_common", "libs/enigo", "libs/clipboard", "libs/virtual_display", "libs/virtual_display/dylib", "libs/portable", "libs/remote_printer"]
+members = ["libs/scrap", "libs/hbb_common", "libs/enigo", "libs/clipboard", "libs/virtual_display", "libs/virtual_display/dylib", "libs/portable", "libs/remote_printer", "libs/build_support"]
 exclude = ["vdi/host", "examples/custom_plugin"]
 
 # Patch libxdo-sys to use a stub implementation that doesn't require libxdo
@@ -226,10 +236,25 @@ winapi = { version = "0.3", features = [ "winnt", "pdh", "synchapi" ] }
 cc = "1.0"
 hbb_common = { path = "libs/hbb_common" }
 os-version = "0.2"
+# vhd-machine-auth-bridge: pure helpers (secret.sec parser, hex/base64
+# decoders, priority-chain resolver) shared with the build-script
+# integration tests in libs/build_support/tests/.
+build_support = { path = "libs/build_support" }
 
 [dev-dependencies]
 hound = "3.5"
 docopt = "1.1"
+# vhd-machine-auth-bridge: property-based testing for codec round-trip,
+# HMAC input vectors, state-machine traces, etc. Only in `cfg(test)`,
+# so production binaries do not link `proptest` regardless of features.
+proptest = "1.4"
+# vhd-machine-auth-bridge: enable tokio's `test-util` feature for the
+# §8.3 / §8.4 property tests that drive the coalescing window and
+# heartbeat ticker under `tokio::time::pause()` + `advance()`. The
+# feature is dev-only — it never reaches production binaries — and
+# unions with the `full` feature already pulled in via `hbb_common`,
+# so this line only adds `test-util`.
+tokio = { version = "1.44", features = ["test-util"] }
 
 [package.metadata.bundle]
 name = "RustDesk"
