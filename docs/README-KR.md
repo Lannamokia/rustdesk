@@ -1,182 +1,138 @@
 <p align="center">
   <img src="../res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
-  <a href="#빌드를 위한 원시 단계">빌드</a> •
-  <a href="#Docker로 빌드하는 방법">Docker</a> •
-  <a href="#파일 구조">구조</a> •
-  <a href="#스크린샷">스냇샷</a><br>
-  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-DA.md">Dansk</a>] | [<a href="README-GR.md">Ελληνικά</a>] | [<a href="README-TR.md">Türkçe</a>] | [<a href="README-NO.md">Norsk</a>]<br>
-  <b>이 README, <a href="https://github.com/rustdesk/rustdesk/tree/master/src/lang">RustDesk UI</a> 및 <a href="https://github.com/rustdesk/doc.rustdesk.com">RustDesk 문서</a>를 귀하의 모국어로 번역하는 데 도움이 필요합니다</b>
+  <b>RustDesk &mdash; <code>Lannamokia</code> 포크 (VHD machine-auth bridge)</b><br>
+  <a href="#포크-상태">포크 상태</a> &bull;
+  <a href="#이-포크가-추가하는-것">추가 사항</a> &bull;
+  <a href="#빌드">빌드</a> &bull;
+  <a href="#비밀-값과-ci">비밀 값과 CI</a> &bull;
+  <a href="#라이선스와-저작권">라이선스</a><br>
+  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-DA.md">Dansk</a>] | [<a href="README-GR.md">Ελληνικά</a>] | [<a href="README-TR.md">Türkçe</a>] | [<a href="README-NO.md">Norsk</a>] | [<a href="README-RO.md">Română</a>]
 </p>
 
+> [!Important]
+> 본 저장소는 [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk)의 다운스트림 포크입니다. 전체 영문 문서는 [`../README.md`](../README.md)를 참고하세요.
+> 상류의 저작권, 상표, AGPL-3.0 라이선스는 변경되지 않았습니다 &mdash; [라이선스와 저작권](#라이선스와-저작권) 참고.
+
 > [!Caution]
-> **오용 면책 조항:** <br>
-> RustDesk의 개발자는 이 소프트웨어의 비윤리적 또는 불법적인 사용을 묵인하거나 지원하지 않습니다. 무단 액세스, 제어 또는 개인정보 침해와 같은 오용은 엄격하게 당사의 지침에 위배됩니다. 작성자는 응용 프로그램의 오용에 대해 책임을 지지 않습니다.
+> **오용 면책:** 상류 RustDesk 개발자와 본 포크의 유지자는 본 소프트웨어의 비윤리적 또는 불법적 사용을 용인하거나 지원하지 않습니다. 무단 접근, 제어, 프라이버시 침해 등의 오용은 엄격히 금지됩니다. 저작자는 응용 프로그램의 어떠한 오용에도 책임지지 않습니다.
 
+---
 
-우리와 채팅: [Discord](https://discord.gg/nDceKgxnkV) | [Twitter](https://twitter.com/rustdesk) | [Reddit](https://www.reddit.com/r/rustdesk) | [YouTube](https://www.youtube.com/@rustdesk)
+## 포크 상태
 
-[![RustDesk Server Pro](https://img.shields.io/badge/RustDesk%20Server%20Pro-%EA%B3%A0%EA%B8%89%20%EA%B8%B0%EB%8A%A5-blue)](https://rustdesk.com/pricing.html)
+| | |
+|---|---|
+| **상류** | [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk) (git 에서 `upstream` 리모트) |
+| **본 포크** | [`Lannamokia/rustdesk`](https://github.com/Lannamokia/rustdesk) |
+| **활성 브랜치** | `feature/vhd-machine-auth-bridge` |
+| **서브모듈** | `libs/hbb_common` &rarr; [`Lannamokia/hbb_common`](https://github.com/Lannamokia/hbb_common), 동일 브랜치 |
+| **라이선스** | AGPL-3.0 (상류와 동일, [`LICENCE`](../LICENCE) 참고) |
+| **목적** | RustDesk 피제어 측을 외부 VHDMount 에이전트의 사이드카로 동작시키며, 인증되고 머신에 결박된 브리지로 통신합니다. |
 
-또 하나의 원격 데스크톱 솔루션으로, Rust로 작성되었습니다. 별도의 설정 없이 바로 사용할 수 있습니다. 데이터에 대한 완전한 통제권을 가지며 보안에 대한 걱정이 없습니다. 저희 랑데부/릴레이 서버를 사용하거나, [직접 설정](https://rustdesk.com/server)하거나, [자신만의 랑데부/릴레이 서버를 작성](https://github.com/rustdesk/rustdesk-server-demo)할 수 있습니다.
+`vhd-bridge`가 **꺼져 있을** 때 빌드 산출물은 상류 RustDesk와 행위적으로 동일하며, `tests/feature_off_parity.rs`가 이를 자동 검증합니다.
 
-![image](https://user-images.githubusercontent.com/71636191/171661982-430285f0-2e12-4b1d-9957-4a58e375304d.png)
+## 이 포크가 추가하는 것
 
-RustDesk는 모든 분들의 기여를 환영합니다. 시작하는 데 도움이 필요하면 [CONTRIBUTING-KR.md](CONTRIBUTING-KR.md)를 참조하세요.
+응집된 하위 시스템 하나 &mdash; **VHD machine-auth bridge** &mdash; 를 도입했고, **기본값 꺼짐**인 두 Cargo feature로 제어됩니다:
 
-[**자주 묻는 질문**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
+- **`vhd-bridge`** &mdash; 브리지 워커, IPC 배선, 유지보수 오버레이 UI, smoke 테스트를 컴파일에 포함합니다.
+- **`controlled-only`** &mdash; Controller(initiator) UI와 코드 경로를 제거하여 피제어 전용 바이너리를 생성합니다. 운영용 사이드카 빌드는 `vhd-bridge`와 함께 사용합니다.
 
-[**바이너리 다운로드**](https://github.com/rustdesk/rustdesk/releases)
+어느 feature도 켜지 않으면 기존 `cargo run` 및 상류 빌드 흐름이 그대로 유지됩니다.
 
-[**개발자 빌드**](https://github.com/rustdesk/rustdesk/releases/tag/nightly)
+### 주요 변경 사항
 
-[<img src="https://f-droid.org/badge/get-it-on.png"
-    alt="Get it on F-Droid"
-    height="80">](https://f-droid.org/en/packages/com.carriez.flutter_hbb)
-[<img src="https://flathub.org/api/badge?svg&locale=en"
-    alt="Get it on Flathub"
-    height="80">](https://flathub.org/apps/com.rustdesk.RustDesk)
+- **`src/vhd_bridge/`** &ndash; 네임드 파이프 워커. 상태 기계 `Identify &rarr; Authenticate &rarr; PeerSet &rarr; Heartbeat &rarr; Approval`, 빌드 시 주입된 32 바이트 공유 비밀로 HMAC-SHA256, 재접속 백오프, 구조화된 관측성, 비밀 값을 마스킹하는 로그 싱크.
+- **`src/server/connection.rs`** &ndash; 들어오는 피어를 수락하기 전에 브리지의 machine-auth peer set에 질의하는 승인 게이트.
+- **`src/auth_2fa.rs`** &ndash; 브리지가 인증을 담당하는 동안 2FA를 강제로 비활성화 (`tests/smoke_2fa_disabled.rs`로 검증).
+- **`flutter/lib/desktop/widgets/maintenance_overlay.dart`** &ndash; 브리지 상태(`active / starting / lost`)를 반영하는 유지보수 오버레이.
+- **`libs/build_support/`** &ndash; `build.rs`와 CI가 공유하는 보조 crate. 사전요건 변수 엄격 게이트, `secret.sec` 관용 파서, 프로토콜 문서 무결성 테스트.
+- **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; 와이어 프로토콜 명세서.
+- **`scripts/check_bridge_strings.ps1`** &ndash; 빌드 후 누출 스캐너. `HBBS Key` / `VHDMount Key` 평문이 바이너리에 남지 않음을 보증.
+- **`.github/workflows/vhd-bridge.yml`** &mdash; feature-on / feature-off / controlled-only 세 가지 Windows 산출물을 빌드하는 CI 매트릭스.
 
-## 종속성
+전체 설계 문서는 [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge)에 있습니다.
 
-데스크톱 버전은 GUI로 Flutter 또는 Sciter (더 이상 지원되지 않음)를 사용하며, 이 자습서는 시작하기 더 쉽고 친숙한 Sciter 전용입니다. Flutter 버전 빌드는 [CI](https://github.com/rustdesk/rustdesk/blob/master/.github/workflows/flutter-build.yml)을 확인하세요.
+## 클론
 
-Sciter 동적 라이브러리를 직접 다운로드하세요.
-
-[Windows](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.win/x64/sciter.dll) |
-[Linux](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so) |
-[macOS](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.osx/libsciter.dylib)
-
-## 빌드를 위한 원시 단계
-
-- Rust 개발 환경과 C++ 빌드 환경을 준비합니다
-
-- [vcpkg](https://github.com/microsoft/vcpkg)를 설치하고 `VCPKG_ROOT` 환경 변수를 올바르게 설정합니다
-
-  - Windows: vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
-  - Linux/macOS: vcpkg install libvpx libyuv opus aom
-
-- `cargo run` 실행
-
-## [빌드](https://rustdesk.com/docs/en/dev/build/)
-
-## Linux에서 빌드하는 방법
-
-### Ubuntu 18 (Debian 10)
+본 포크는 `libs/hbb_common` 서브모듈 URL을 수정했으므로 재귀 클론이 필요합니다:
 
 ```sh
-sudo apt install -y zip g++ gcc git curl wget nasm yasm libgtk-3-dev clang libxcb-randr0-dev libxdo-dev \
-        libxfixes-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libpulse-dev cmake make \
-        libclang-dev ninja-build libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libpam0g-dev
-```
-
-### openSUSE Tumbleweed
-
-```sh
-sudo zypper install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libXfixes-devel cmake alsa-lib-devel gstreamer-devel gstreamer-plugins-base-devel xdotool-devel pam-devel
-```
-
-### Fedora 28 (CentOS 8)
-
-```sh
-sudo yum -y install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libxdo-devel libXfixes-devel pulseaudio-libs-devel cmake alsa-lib-devel gstreamer1-devel gstreamer1-plugins-base-devel pam-devel
-```
-
-### Arch (Manjaro)
-
-```sh
-sudo pacman -Syu --needed unzip git cmake gcc curl wget yasm nasm zip make pkg-config clang gtk3 xdotool libxcb libxfixes alsa-lib pipewire
-```
-
-### vcpkg 설치
-
-```sh
-git clone https://github.com/microsoft/vcpkg
-cd vcpkg
-git checkout 2023.04.15
-cd ..
-vcpkg/bootstrap-vcpkg.sh
-export VCPKG_ROOT=$HOME/vcpkg
-vcpkg/vcpkg install libvpx libyuv opus aom
-```
-
-### libvpx 수정 (Fedora용) 
-
-```sh
-cd vcpkg/buildtrees/libvpx/src
-cd *
-./configure
-sed -i 's/CFLAGS+=-I/CFLAGS+=-fPIC -I/g' Makefile
-sed -i 's/CXXFLAGS+=-I/CXXFLAGS+=-fPIC -I/g' Makefile
-make
-cp libvpx.a $HOME/vcpkg/installed/x64-linux/lib/
-cd
-```
-
-### 빌드
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-git clone --recurse-submodules https://github.com/rustdesk/rustdesk
+git clone --recursive https://github.com/Lannamokia/rustdesk.git
 cd rustdesk
-mkdir -p target/debug
-wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
-mv libsciter-gtk.so target/debug
-VCPKG_ROOT=$HOME/vcpkg cargo run
-```
-
-## Docker로 빌드하는 방법
-
-먼저 리포지토리를 복제하고 Docker 컨테이너를 빌드합니다:
-
-```sh
-git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
+git checkout feature/vhd-machine-auth-bridge
 git submodule update --init --recursive
-docker build -t "rustdesk-builder" .
 ```
 
-그런 다음 응용 프로그램을 빌드해야 할 때마다 다음 명령을 실행합니다:
+이미 상류 `.gitmodules`로 클론한 적이 있다면 `git submodule sync && git submodule update --init --recursive`를 실행하세요.
+
+## 빌드
+
+### 상류 빌드 (브리지 끔)
+
+feature를 켜지 않으면 본 포크는 상류의 엄격한 상위 집합이며, 상류 빌드 안내가 그대로 적용됩니다. 전체 의존성과 명령은 [`../README.md`](../README.md)를 참고하세요.
+
+### 브리지 빌드 (Windows MSVC, 권장)
+
+브리지는 현재 Windows만 지원합니다 (네임드 파이프 전송과 VHDMount 에이전트 의존성).
+
+필요한 환경 변수:
+
+```text
+VCPKG_ROOT             = C:\src\vcpkg
+VCPKG_DEFAULT_TRIPLET  = x64-windows-static
+VCPKGRS_DYNAMIC        = 0
+LIBCLANG_PATH          = <LLVM\x64\bin 경로>
+```
+
+이후 개발용 `secret.sec`를 채우거나 관련 환경 변수를 설정한 뒤:
 
 ```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
+# 운영 사이드카 빌드 (브리지 켜기 + Controller 제거)
+cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+
+# 브리지만 (개발 중 Controller UI 유지)
+cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ```
 
-첫 번째 빌드는 종속성이 캐시되기까지 시간이 오래 걸릴 수 있으며, 이후 빌드는 더 빨라집니다. 또한 빌드 명령에 다른 인수를 지정해야 하는 경우 명령 끝의 `<OPTIONAL-ARGS>` 위치에 인수를 지정할 수 있습니다. 예를 들어 최적화된 릴리스 버전을 빌드하려면 위의 명령 뒤에 `--release`를 추가하면 됩니다. 결과 실행 파일은 시스템의 대상 폴더에서 사용할 수 있으며 실행할 수 있습니다::
+### 검증
 
 ```sh
-target/debug/rustdesk
+cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo test  --test feature_off_parity
+cargo test  -p build_support
 ```
 
-또는 릴리스 실행 파일을 실행하는 경우:
+본 브랜치 최근 실행 결과: 오류 0 / 단위 189 통과 / 통합 6 + 8 / build_support 38 + 4.
 
-```sh
-target/release/rustdesk
-```
+## 비밀 값과 CI
 
-RustDesk 리포지토리의 루트에서 이러한 명령을 실행하고 있는지 확인하세요. 그렇지 않으면 응용 프로그램이 필요한 리소스를 찾지 못할 수 있습니다. 또한 `install` 또는 `run` 과 같은 다른 cargo 하위 명령은 호스트가 아닌 컨테이너 내부에 프로그램을 설치하거나 실행하므로 현재 이 방법을 통해 지원되지 않는다는 점에 유의하세요.
+브리지는 빌드 시 5 가지 입력을 요구합니다:
 
-## 파일 구조
+| 변수 | 용도 | 형식 |
+|---|---|---|
+| `HBBS_KEY` | RustDesk rendezvous 서버 공개키 (`RS_PUB_KEY` 덮어쓰기) | base64, 디코드 후 32 바이트 |
+| `HBBS_HOST` | rendezvous 서버 호스트 | `host[:port[-port2]]` |
+| `HBBR_HOST` | relay 서버 호스트 | `host[:port]` |
+| `VHD_BRIDGE_SECRET_HEX` (또는 `_B64`) | 32 바이트 HMAC 공유 비밀 | hex 64자 / base64 44자 |
+| `VHD_BRIDGE_SECRET_VERSION` | 단조 증가하는 키 회전 버전 | 음이 아닌 정수 |
 
-- **[libs/hbb_common](https://github.com/rustdesk/rustdesk/tree/master/libs/hbb_common)**: 비디오 코덱, 구성, tcp/udp wrapper, protobuf, 파일 전송을 위한 fs 함수 및 기타 유틸리티 함수
-- **[libs/scrap](https://github.com/rustdesk/rustdesk/tree/master/libs/scrap)**: 화면 캡쳐
-- **[libs/enigo](https://github.com/rustdesk/rustdesk/tree/master/libs/enigo)**: 플랫폼별 키보드/마우스 제어
-- **[libs/clipboard](https://github.com/rustdesk/rustdesk/tree/master/libs/clipboard)**: Windows, Linux, macOS용 파일 복사 및 붙여넣기 구현
-- **[src/ui](https://github.com/rustdesk/rustdesk/tree/master/src/ui)**: 더 이상 사용되지 않는 Sciter UI (지원 중단)
-- **[src/server](https://github.com/rustdesk/rustdesk/tree/master/src/server)**: 오디오/클립보드/입력/비디오 서비스 및 네트워크 연결
-- **[src/client.rs](https://github.com/rustdesk/rustdesk/tree/master/src/client.rs)**: 피어 연결 시작
-- **[src/rendezvous_mediator.rs](https://github.com/rustdesk/rustdesk/tree/master/src/rendezvous_mediator.rs)**: [rustdesk-server](https://github.com/rustdesk/rustdesk-server)와 통신, 원격 다이렉트 (TCP 홀 펀칭) 또는 릴레이 연결 대기
-- **[src/platform](https://github.com/rustdesk/rustdesk/tree/master/src/platform)**: 플랫폼별 코드
-- **[flutter](https://github.com/rustdesk/rustdesk/tree/master/flutter)**: 데스크톱 및 모바일용 Flutter 코드
-- **[flutter/web/js](https://github.com/rustdesk/rustdesk/tree/master/flutter/web/v1/js)**: Flutter 웹 클라이언트용 JavaScript
+두 가지 공급 방법:
 
-## 스크린샷
+1. **로컬 개발** &mdash; 저장소 루트의 `secret.sec`에 `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`을 기록. 해당 파일은 [`.gitignore`](../.gitignore)에 의해 무시됩니다.
+2. **CI** &mdash; GitHub Actions 저장소 비밀로 동일 이름을 등록. [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml)이 마스킹된 환경 변수로 주입하며, **`secret.sec`는 CI 러너에 절대 기록되지 않습니다**.
 
-![Connection Manager](https://github.com/rustdesk/rustdesk/assets/28412477/db82d4e7-c4bc-4823-8e6f-6af7eadf7651)
+`secret.sec`와 `vhd_bridge_secret.bin`은 모두 `.gitignore`에 포함되어 있으며 **커밋 금지**입니다. `scripts/check_bridge_strings.ps1`는 빌드 후 최종 안전망입니다.
 
-![Connected to a Windows PC](https://github.com/rustdesk/rustdesk/assets/28412477/9baa91e9-3362-4d06-aa1a-7518edcbd7ea)
+## 라이선스와 저작권
 
-![File Transfer](https://github.com/rustdesk/rustdesk/assets/28412477/39511ad3-aa9a-4f8c-8947-1cce286a46ad)
+본 포크는 상류와 동일하게 **GNU Affero General Public License v3.0 (AGPL-3.0)**로 배포됩니다. 전문은 [`../LICENCE`](../LICENCE)에 있으며, 본 포크는 **수정하지 않습니다**.
 
-![TCP Tunneling](https://github.com/rustdesk/rustdesk/assets/28412477/78e8708f-e87e-4570-8373-1360033ea6c5)
+- 상류 RustDesk 코드의 저작권은 모두 상류 RustDesk 저작자와 기여자에게 귀속됩니다 (<https://github.com/rustdesk/rustdesk>).
+- 본 포크가 도입한 변경 사항(`vhd-bridge` / `controlled-only` 및 부속 코드) 또한 AGPL-3.0으로 배포됩니다. 다운스트림 사용자는 네트워크 배포 시 대응 소스 청구권을 포함한 AGPL-3.0이 부여하는 모든 권리를 보유합니다.
+- "RustDesk" 이름과 로고는 상류 프로젝트에 귀속됩니다. 본 포크는 단지 수정 대상 코드를 식별하기 위해서만 사용하며, 이는 파생 자유 소프트웨어 프로젝트에서의 상표 공정 사용 관행을 따릅니다.
+- vcpkg를 통해 도입된 제3자 라이브러리(`libvpx`, `libyuv`, `opus`, `aom`), Sciter SDK, Flutter 의존성 등은 각자의 원본 라이선스를 유지합니다.
 
+본 포크 사용은 AGPL-3.0 조건과 상단의 **오용 면책**에 동의함을 의미합니다.

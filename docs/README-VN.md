@@ -1,161 +1,138 @@
-
-
 <p align="center">
   <img src="../res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
-  <a href="#free-public-servers">Server</a> •
-  <a href="#raw-steps-to-build">Build</a> •
-  <a href="#how-to-build-with-docker">Docker</a> •
-  <a href="#file-structure">Structure</a> •
-  <a href="#snapshot">Snapshot</a><br>
-  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-GR.md">Ελληνικά</a>]<br>
-  <b>Chúng tôi rất hoan nghênh sự hỗ trợ của bạn trong việc dịch trang README, trang giao diện người dùng của RustDesk - <a href="https://github.com/rustdesk/rustdesk/tree/master/src/lang">RustDesk UI</a> và trang tài liệu của RustDesk - <a href="https://github.com/rustdesk/doc.rustdesk.com">RustDesk Doc</a> sang Tiếng Việt</b>
+  <b>RustDesk &mdash; bản fork <code>Lannamokia</code> kèm cầu xác thực máy VHD</b><br>
+  <a href="#trạng-thái-fork">Trạng thái fork</a> &bull;
+  <a href="#bản-fork-này-bổ-sung-gì">Bổ sung</a> &bull;
+  <a href="#biên-dịch">Biên dịch</a> &bull;
+  <a href="#bí-mật-và-ci">Bí mật &amp; CI</a> &bull;
+  <a href="#giấy-phép-và-ghi-công">Giấy phép</a><br>
+  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-DA.md">Dansk</a>] | [<a href="README-GR.md">Ελληνικά</a>] | [<a href="README-TR.md">Türkçe</a>] | [<a href="README-NO.md">Norsk</a>] | [<a href="README-RO.md">Română</a>]
 </p>
 
-Hãy trao đổi với chúng tôi qua: [Discord](https://discord.gg/nDceKgxnkV) | [Twitter](https://twitter.com/rustdesk) | [Reddit](https://www.reddit.com/r/rustdesk) | [YouTube](https://www.youtube.com/@rustdesk)
+> [!Important]
+> Repository này là bản fork hạ nguồn của [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk). Tài liệu tiếng Anh đầy đủ: [`../README.md`](../README.md).
+> Bản quyền, thương hiệu và giấy phép AGPL-3.0 của upstream được giữ nguyên &mdash; xem [Giấy phép và ghi công](#giấy-phép-và-ghi-công).
 
-[![RustDesk Server Pro](https://img.shields.io/badge/RustDesk%20Server%20Pro-T%C3%ADnh%20N%C4%83ng%20N%C3%A2ng%20Cao-blue)](https://rustdesk.com/pricing.html)
+> [!Caution]
+> **Khước trách lạm dụng:** các nhà phát triển upstream RustDesk và những người duy trì bản fork này không dung thứ hay hỗ trợ bất kỳ hành vi sử dụng phi đạo đức hay bất hợp pháp nào của phần mềm. Truy cập, điều khiển hay xâm phạm quyền riêng tư trái phép đều bị nghiêm cấm. Tác giả không chịu trách nhiệm cho bất kỳ hành vi lạm dụng nào.
 
-RustDesk là một phần mềm điểu khiển máy tính từ xa mã nguồn mở, được viết bằng Rust. Nó hoạt động ngay sau khi cài đặt, không yêu cầu cấu hình phức tạp. Bạn có toàn quyền kiểm soát với dữ liệu của mình mà không cần phải lo lắng về vấn đề bảo mật. Bạn có thể sử dụng máy chủ rendezvous/relay của chúng tôi hoặc [tự cài đặt máy chủ của riêng mình](https://rustdesk.com/server) hay thậm chí [tự tạo máy chủ rendezvous/relay cho riêng bạn](https://github.com/rustdesk/rustdesk-server-demo).
+---
 
-![image](https://user-images.githubusercontent.com/71636191/171661982-430285f0-2e12-4b1d-9957-4a58e375304d.png)
+## Trạng thái fork
 
-**RustDesk** luôn hoan nghênh mọi đóng góp từ mọi người. Hãy xem tệp [`docs/CONTRIBUTING.md`](CONTRIBUTING.md) để bắt đầu. 
+| | |
+|---|---|
+| **Upstream** | [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk) (trong git là remote `upstream`) |
+| **Bản fork** | [`Lannamokia/rustdesk`](https://github.com/Lannamokia/rustdesk) |
+| **Nhánh đang dùng** | `feature/vhd-machine-auth-bridge` |
+| **Submodule** | `libs/hbb_common` &rarr; [`Lannamokia/hbb_common`](https://github.com/Lannamokia/hbb_common), cùng tên nhánh |
+| **Giấy phép** | AGPL-3.0 (giữ nguyên so với upstream &mdash; xem [`LICENCE`](../LICENCE)) |
+| **Mục tiêu** | Chạy phía bị điều khiển của RustDesk như sidecar của tác nhân VHDMount bên ngoài qua một cầu được xác thực và gắn cứng vào máy. |
 
-[**FAQ**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
-[**BINARY DOWNLOAD**](https://github.com/rustdesk/rustdesk/releases)
-[**NIGHTLY BUILD**](https://github.com/rustdesk/rustdesk/FAQreleases/tag/nightly)
+Khi `vhd-bridge` **tắt**, build artifact tương đương về hành vi với upstream RustDesk &mdash; bất biến này được kiểm chứng tự động bởi `tests/feature_off_parity.rs`.
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-    alt="Get it on F-Droid"
-    height="80">](https://f-droid.org/en/packages/com.carriez.flutter_hbb)
+## Bản fork này bổ sung gì
 
-## Dependencies
+Một hệ con cô đọng &mdash; **cầu xác thực máy VHD** &mdash; được điều khiển bởi hai Cargo feature, **mặc định tắt**:
 
-Phiên bản máy tính sử dụng __Flutter__ hoặc __Sciter__ (đã lỗi thời) cho giao diện người dùng (GUI). Hướng dẫn này chỉ áp dụng cho phiên bản Sciter, vì nó thân thiện và dễ bắt đầu hơn. Hãy kiểm tra [CI](https://github.com/rustdesk/rustdesk/blob/master/.github/workflows/flutter-build.yml) của chúng tôi để xây dựng phiên bản Flutter.
+- **`vhd-bridge`** &mdash; biên dịch worker cầu, dây IPC, overlay UI bảo trì và smoke test vào.
+- **`controlled-only`** &mdash; lược bỏ UI và đường code Controller (initiator) để tạo binary chỉ-bị-điều-khiển; kết hợp với `vhd-bridge` cho bản build sidecar sản xuất.
 
-Vui lòng tự tải thư viện `Sciter` về máy theo hướng dẫn cho từng hệ điều hành.
+Không bật feature nào, `cargo run` và luồng build upstream vẫn vận hành như cũ.
 
-[Windows](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.win/x64/sciter.dll) | [Linux](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so) | [MacOS](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.osx/libsciter.dylib)
+### Thay đổi chính
 
-## Các bước build cơ bản
+- **`src/vhd_bridge/`** &ndash; worker named pipe, máy trạng thái `Identify &rarr; Authenticate &rarr; PeerSet &rarr; Heartbeat &rarr; Approval`, HMAC-SHA256 với bí mật chia sẻ 32 byte tiêm vào lúc build, backoff kết nối lại, observability có cấu trúc, log sink che bí mật.
+- **`src/server/connection.rs`** &ndash; cổng phê duyệt: trước khi chấp nhận peer đến, tham vấn tập peer xác thực máy do cầu duy trì.
+- **`src/auth_2fa.rs`** &ndash; 2FA bị buộc tắt khi cầu chỉ huy xác thực (kiểm chứng bởi `tests/smoke_2fa_disabled.rs`).
+- **`flutter/lib/desktop/widgets/maintenance_overlay.dart`** &ndash; overlay phản ánh trạng thái cầu (`active / starting / lost`).
+- **`libs/build_support/`** &ndash; crate hỗ trợ dùng chung giữa `build.rs` và CI: cổng tiền điều kiện nghiêm ngặt, parser `secret.sec` khoan dung, kiểm tra nhất quán với tài liệu giao thức.
+- **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; tham chiếu giao thức đường truyền.
+- **`scripts/check_bridge_strings.ps1`** &ndash; máy quét rò rỉ hậu build: bảo đảm không có byte văn bản gốc của `HBBS Key` / `VHDMount Key` lọt vào artifact.
+- **`.github/workflows/vhd-bridge.yml`** &mdash; ma trận CI build artifact Windows feature-on / feature-off / controlled-only.
 
-- Chuẩn bị môi trường phát triển Rust và môi trường biên dịch C++
+Đặc tả đầy đủ: [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
-- Tải và cài đặt [`vcpkg`](https://github.com/microsoft/vcpkg), và thiết lập biến môi trường `VCPKG_ROOT`.
+## Clone
 
-  - Windows: `vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static`
-  - Linux/MacOS: `vcpkg install libvpx libyuv opus aom`
-- Chạy lệnh `cargo run`
-
-## [Build](https://rustdesk.com/docs/en/dev/build/)
-
-## Cách build cho Linux
-
-### Ubuntu 18 (Debian 10)
-
-```sh
-sudo apt install -y g++ gcc git curl wget nasm yasm libgtk-3-dev clang libxcb-randr0-dev libxdo-dev libxfixes-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libpulse-dev cmake
-```
-
-### Fedora 28 (CentOS 8)
-
-```sh
-sudo yum -y install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libxdo-devel libXfixes-devel pulseaudio-libs-devel cmake alsa-lib-devel
-```
-
-### Arch (Manjaro)
+Bản fork đổi URL submodule `libs/hbb_common`, hãy clone đệ quy:
 
 ```sh
-sudo pacman -Syu --needed unzip git cmake gcc curl wget yasm nasm zip make pkg-config clang gtk3 xdotool libxcb libxfixes alsa-lib pipewire
-```
-
-### Cách cài đặt `vcpkg`
-
-```sh
-git clone https://github.com/microsoft/vcpkg
-cd vcpkg
-git checkout 2023.04.15
-cd ..
-vcpkg/bootstrap-vcpkg.sh
-export VCPKG_ROOT=$HOME/vcpkg
-vcpkg/vcpkg install libvpx libyuv opus aom
-```
-
-### Cách sửa lỗi `libvpx` (Dành cho hệ điều hành Fedora)
-
-```sh
-cd vcpkg/buildtrees/libvpx/src
-cd *
-./configure
-sed -i 's/CFLAGS+=-I/CFLAGS+=-fPIC -I/g' Makefile
-sed -i 's/CXXFLAGS+=-I/CXXFLAGS+=-fPIC -I/g' Makefile
-make
-cp libvpx.a $HOME/vcpkg/installed/x64-linux/lib/
-cd
-```
-
-### Build
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-git clone https://github.com/rustdesk/rustdesk
+git clone --recursive https://github.com/Lannamokia/rustdesk.git
 cd rustdesk
-mkdir -p target/debug
-wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
-mv libsciter-gtk.so target/debug
-VCPKG_ROOT=$HOME/vcpkg cargo run
+git checkout feature/vhd-machine-auth-bridge
+git submodule update --init --recursive
 ```
 
-## Cách build bằng Docker
+Nếu trước đó đã clone bằng `.gitmodules` upstream: `git submodule sync && git submodule update --init --recursive`.
 
-Bắt đầu bằng cách sao chép repo này về máy tính của bạn và tạo Docker container:
+## Biên dịch
+
+### Build upstream (không cầu)
+
+Không bật feature, fork là tập trên nghiêm ngặt của upstream; hướng dẫn upstream áp dụng nguyên xi. Phụ thuộc và lệnh đầy đủ ở [`../README.md`](../README.md).
+
+### Build có cầu (Windows MSVC, khuyến nghị)
+
+Cầu hiện chỉ hỗ trợ Windows (named pipe và tác nhân VHDMount).
+
+Môi trường yêu cầu:
+
+```text
+VCPKG_ROOT             = C:\src\vcpkg
+VCPKG_DEFAULT_TRIPLET  = x64-windows-static
+VCPKGRS_DYNAMIC        = 0
+LIBCLANG_PATH          = <đường dẫn đến LLVM\x64\bin>
+```
+
+Sau đó điền `secret.sec` (chỉ dev) hoặc đặt biến môi trường tương ứng, rồi:
 
 ```sh
-git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
-docker build -t "rustdesk-builder" .
+# Build sidecar sản xuất (cầu BẬT, controller bị bỏ)
+cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+
+# Chỉ cầu (giữ UI controller để dev)
+cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ```
 
-Sau đó, mỗi khi bạn chạy ứng dụng, thì hãy chạy dòng lệnh sau:
+### Kiểm chứng
 
 ```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
+cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo test  --test feature_off_parity
+cargo test  -p build_support
 ```
 
-Lưu ý rằng **lần build đầu tiên có thể mất thời gian hơn trước khi các dependencies được lưu vào bộ nhớ cache**, nhưng các lần build sau sẽ nhanh hơn. Ngoài ra, nếu bạn cần chỉ định các đối số khác cho lệnh build, bạn có thể thêm chúng vào cuối lệnh ở phần `<OPTIONAL-ARGS>`. Ví dụ, nếu bạn muốn build phiên bản tối ưu hóa, bạn sẽ chạy lệnh trên với tùy chọn `--release`. Kết quả biên dịch sẽ được lưu trong thư mục target trên máy tính của bạn, và có thể chạy với lệnh:
+Lần chạy gần nhất trên nhánh: 0 lỗi / 189 unit / 6 + 8 tích hợp / 38 + 4 build_support.
 
-```sh
-target/debug/rustdesk
-```
+## Bí mật và CI
 
-Nếu bạn đang chạy bản build được tối ưu hóa, thì bạn có thể chạy với lệnh:
+Cầu yêu cầu năm đầu vào ở thời điểm build:
 
-```sh
-target/release/rustdesk
-```
+| Biến | Mục đích | Định dạng |
+|---|---|---|
+| `HBBS_KEY` | Khóa công khai rendezvous server (ghi đè `RS_PUB_KEY`) | base64, sau giải mã 32 byte |
+| `HBBS_HOST` | Host rendezvous server | `host[:port[-port2]]` |
+| `HBBR_HOST` | Host relay server | `host[:port]` |
+| `VHD_BRIDGE_SECRET_HEX` (hoặc `_B64`) | Bí mật chia sẻ HMAC 32 byte | 64 hex / 44 base64 |
+| `VHD_BRIDGE_SECRET_VERSION` | Phiên bản xoay khóa đơn điệu | số nguyên không âm |
 
-Hãy đảm bảo rằng bạn đang chạy các lệnh này từ gốc của thư mục **RustDesk**, nếu không, ứng dụng có thể không thể tìm thấy các tệp tài nguyên cần thiết. Hãy lưu ý rằng các câu lệnh con khác của **cargo** như **install** hoặc **run** hiện không được hỗ trợ qua phương pháp này, vì chúng sẽ cài đặt hoặc chạy chương trình bên trong **container** thay vì trên máy tính của bạn.
+Hai con đường:
 
-## Cấu trúc tệp tin
+1. **Dev cục bộ** &mdash; điền `secret.sec` ở gốc repo với `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. Tệp đã được [`.gitignore`](../.gitignore) bỏ qua.
+2. **CI** &mdash; cùng tên đặt làm repository secret trong GitHub Actions; [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) tiêm dưới dạng biến môi trường có mặt nạ. **`secret.sec` không bao giờ được hiện thực hóa trên runner**.
 
-- **[libs/hbb_common](https://github.com/rustdesk/rustdesk/tree/master/libs/hbb_common)**: video codec, cấu hình, tcp/udp wrapper, protobuf, fs functions để truyền file, và một số hàm tiện ích khác
-- **[libs/scrap](https://github.com/rustdesk/rustdesk/tree/master/libs/scrap)**: ghi lại màn hình
-- **[libs/enigo](https://github.com/rustdesk/rustdesk/tree/master/libs/enigo)**: điều khiển máy tính/chuột trên các nền tảng khác nhau
-- **[src/ui](https://github.com/rustdesk/rustdesk/tree/master/src/ui)**: giao diện người dùng
-- **[src/server](https://github.com/rustdesk/rustdesk/tree/master/src/server)**: các dịch vụ âm thanh, clipboard, đầu vào, video và các kết nối mạng
-- **[src/client.rs](https://github.com/rustdesk/rustdesk/tree/master/src/client.rs)**: bắt đầu kết nối với một peer
-- **[src/rendezvous_mediator.rs](https://github.com/rustdesk/rustdesk/tree/master/src/rendezvous_mediator.rs)**: giao tiếp với [rustdesk-server](https://github.com/rustdesk/rustdesk-server), đợi kết nối trực tiếp (TCP hole punching) hoặc kết nối được chuyển tiếp.
-- **[src/platform](https://github.com/rustdesk/rustdesk/tree/master/src/platform)**: mã nguồn riêng cho mỗi nền tảng
-- **[flutter](https://github.com/rustdesk/rustdesk/tree/master/flutter)**: Mã Flutter dành máy tính và điện thoại
-- **[flutter/web/js](https://github.com/rustdesk/rustdesk/tree/master/flutter/web/js)**: Mã JavaScript dành cho giao diện trên web bằng Flutter
+`secret.sec` và `vhd_bridge_secret.bin` đều ở `.gitignore` và **không được commit**. `scripts/check_bridge_strings.ps1` là lưới an toàn sau build.
 
-## Snapshot
+## Giấy phép và ghi công
 
-![image](https://user-images.githubusercontent.com/71636191/113112362-ae4deb80-923b-11eb-957d-ff88daad4f06.png)
+Bản fork phát hành theo cùng giấy phép upstream: **GNU Affero General Public License v3.0 (AGPL-3.0)**. Toàn văn ở [`../LICENCE`](../LICENCE); bản fork **không sửa đổi** giấy phép.
 
-![image](https://user-images.githubusercontent.com/71636191/113112619-f705a480-923b-11eb-911d-97e984ef52b6.png)
+- Mọi bản quyền với mã nguồn upstream RustDesk thuộc về tác giả và người đóng góp upstream, xem <https://github.com/rustdesk/rustdesk>.
+- Các sửa đổi mà bản fork giới thiệu (feature `vhd-bridge` / `controlled-only` và mã hỗ trợ) cũng phát hành theo AGPL-3.0; người dùng hạ nguồn giữ mọi quyền AGPL-3.0 cấp, kể cả quyền nhận mã nguồn tương ứng cho mọi triển khai mạng.
+- Tên và logo "RustDesk" thuộc dự án upstream; bản fork chỉ dùng để định danh nền mã đã sửa, theo thông lệ sử dụng nhãn hiệu hợp lý cho fork phần mềm tự do.
+- Thư viện bên thứ ba (vcpkg: `libvpx`, `libyuv`, `opus`, `aom`; Sciter SDK; phụ thuộc Flutter) giữ giấy phép gốc của chúng.
 
-![image](https://user-images.githubusercontent.com/71636191/113112857-3fbd5d80-923c-11eb-9836-768325faf906.png)
-
-![image](https://user-images.githubusercontent.com/71636191/135385039-38fdbd72-379a-422d-b97f-33df71fb1cec.png)
+Sử dụng bản fork đồng nghĩa chấp thuận AGPL-3.0 và **khước trách lạm dụng** ở đầu tệp.

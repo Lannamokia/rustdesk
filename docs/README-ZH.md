@@ -1,233 +1,138 @@
 <p align="center">
   <img src="../res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
-  <a href="#免费的公共服务器">服务器</a> •
-  <a href="#基本构建步骤">编译</a> •
-  <a href="#使用-Docker-编译">Docker</a> •
-  <a href="#文件结构">结构</a> •
-  <a href="#截图">截图</a><br>
-  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-GR.md">Ελληνικά</a>]<br>
+  <b>RustDesk &mdash; <code>Lannamokia</code> fork（VHD 机器认证桥接版）</b><br>
+  <a href="#fork-状态">Fork 状态</a> &bull;
+  <a href="#本-fork-新增了什么">新增内容</a> &bull;
+  <a href="#编译">编译</a> &bull;
+  <a href="#密钥与-ci">密钥与 CI</a> &bull;
+  <a href="#许可证与署名">许可证</a><br>
+  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-DA.md">Dansk</a>] | [<a href="README-GR.md">Ελληνικά</a>] | [<a href="README-TR.md">Türkçe</a>] | [<a href="README-NO.md">Norsk</a>] | [<a href="README-RO.md">Română</a>]
 </p>
 
-> [!CAUTION]
-> **免责声明:** <br>
-> RustDesk 的开发人员不纵容或支持任何不道德或非法的软件使用行为。滥用行为，例如未经授权的访问、控制或侵犯隐私，严格违反我们的准则。作者对应用程序的任何滥用行为概不负责。
+> [!Important]
+> 本仓库是 [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk) 的下游 fork。完整英文文档见 [`../README.md`](../README.md)。
+> 上游著作权、商标及 AGPL-3.0 许可证保持不变 &mdash; 详见[许可证与署名](#许可证与署名)。
 
-与我们交流: [知乎](https://www.zhihu.com/people/rustdesk) | [Discord](https://discord.gg/nDceKgxnkV) | [Reddit](https://www.reddit.com/r/rustdesk) | [YouTube](https://www.youtube.com/@rustdesk)
+> [!Caution]
+> **免责声明：** 上游 RustDesk 的开发者及本 fork 的维护者不纵容或支持任何不道德或非法的软件使用行为。未经授权的访问、控制或侵犯隐私等滥用行为严格违反使用准则。作者对应用程序的任何滥用行为概不负责。
 
-[![RustDesk Server Pro](https://img.shields.io/badge/RustDesk%20Server%20Pro-%E9%AB%98%E7%BA%A7%E5%8A%9F%E8%83%BD-blue)](https://rustdesk.com/pricing.html)
+---
 
-远程桌面软件，开箱即用，无需任何配置。您完全掌控数据，不用担心安全问题。您可以使用我们的注册/中继服务器，
-或者[自己设置](https://rustdesk.com/server)，
-亦或者[开发您的版本](https://github.com/rustdesk/rustdesk-server-demo)。
+## Fork 状态
 
-![image](https://user-images.githubusercontent.com/71636191/171661982-430285f0-2e12-4b1d-9957-4a58e375304d.png)
+| | |
+|---|---|
+| **上游** | [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk)（在 git 中作为 `upstream` remote） |
+| **本 fork** | [`Lannamokia/rustdesk`](https://github.com/Lannamokia/rustdesk) |
+| **活跃分支** | `feature/vhd-machine-auth-bridge` |
+| **子模块** | `libs/hbb_common` &rarr; [`Lannamokia/hbb_common`](https://github.com/Lannamokia/hbb_common)，同名分支 |
+| **许可证** | AGPL-3.0（与上游一致，见 [`LICENCE`](../LICENCE)） |
+| **目标** | 让 RustDesk 受控端作为外部 VHDMount 代理的 sidecar，通过经过认证、机器绑定的桥接信道协同工作。 |
 
-RustDesk 期待各位的贡献. 如何参与开发? 详情请看 [CONTRIBUTING-ZH.md](CONTRIBUTING-ZH.md).
+当 `vhd-bridge` 功能**关闭**时，构建产物在行为上与上游 RustDesk 完全等价 &mdash; 该约束由 `tests/feature_off_parity.rs` 自动验证。
 
-[**FAQ**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
+## 本 fork 新增了什么
 
-[**BINARY DOWNLOAD**](https://github.com/rustdesk/rustdesk/releases)
+引入了一个内聚的子系统 &mdash; **VHD 机器认证桥接（VHD machine-auth bridge）**，由两个**默认关闭**的 Cargo features 控制：
 
-[**NIGHTLY BUILD**](https://github.com/rustdesk/rustdesk/releases/tag/nightly)
+- **`vhd-bridge`** &mdash; 编入桥接 worker、IPC 通道、维护遮罩 UI 与 smoke 测试。
+- **`controlled-only`** &mdash; 剥离主控端（initiator）UI 与代码路径，使产物仅能被控制；与 `vhd-bridge` 组合用于生产 sidecar 构建。
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-    alt="Get it on F-Droid"
-    height="80">](https://f-droid.org/en/packages/com.carriez.flutter_hbb)
+未启用任一 feature 时，原有 `cargo run` 与上游构建流程完全不变。
 
-## 依赖
+### 主要改动
 
-桌面版本使用 Flutter 或 Sciter（已弃用）作为 GUI，本教程仅适用于 Sciter，因为它更简单且更易于上手。查看我们的[CI](https://github.com/rustdesk/rustdesk/blob/master/.github/workflows/flutter-build.yml)以构建 Flutter 版本。
+- **`src/vhd_bridge/`** &ndash; 命名管道 worker，状态机 `Identify &rarr; Authenticate &rarr; PeerSet &rarr; Heartbeat &rarr; Approval`，HMAC-SHA256 用编译期注入的 32 字节共享密钥；含重连退避、结构化可观测性、对密钥脱敏的日志接收器。
+- **`src/server/connection.rs`** &ndash; 接受连入对等方前先咨询桥接的机器认证 peer 集合的准入门。
+- **`src/auth_2fa.rs`** &ndash; 桥接介入认证时强制禁用 2FA（由 `tests/smoke_2fa_disabled.rs` 验证）。
+- **`flutter/lib/desktop/widgets/maintenance_overlay.dart`** &ndash; 反映桥接状态（`active / starting / lost`）的维护遮罩 UI。
+- **`libs/build_support/`** &ndash; 由 `build.rs` 与 CI 共用的辅助 crate：包含严格的前置变量校验门、`secret.sec` 的容错解析器、与协议文档一致性检查。
+- **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; 线协议参考文档。
+- **`scripts/check_bridge_strings.ps1`** &ndash; 构建后泄漏扫描器，确保 `HBBS Key` / `VHDMount Key` 明文不会进入产物。
+- **`.github/workflows/vhd-bridge.yml`** &ndash; 编译 feature-on / feature-off / controlled-only 三个 Windows flavour 的 CI 矩阵。
 
-请自行下载Sciter动态库。
+完整设计文档见 [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge)。
 
-[Windows](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.win/x64/sciter.dll) |
-[Linux](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so) |
-[macOS](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.osx/libsciter.dylib)
+## 克隆
 
-## 基本构建步骤
-
-- 请准备好 Rust 开发环境和 C++ 编译环境
-
-- 安装 [vcpkg](https://github.com/microsoft/vcpkg), 正确设置 `VCPKG_ROOT` 环境变量
-
-  - Windows: vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
-  - Linux/macOS: vcpkg install libvpx libyuv opus aom
-
-- 运行 `cargo run`
-
-## [构建](https://rustdesk.com/docs/en/dev/build/)
-
-## 在 Linux 上编译
-
-### Ubuntu 18 (Debian 10)
+本 fork 修改了 `libs/hbb_common` 子模块的 URL，需使用递归克隆：
 
 ```sh
-sudo apt install -y zip g++ gcc git curl wget nasm yasm libgtk-3-dev clang libxcb-randr0-dev libxdo-dev \
-        libxfixes-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libpulse-dev cmake make \
-        libclang-dev ninja-build libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
-```
-
-### openSUSE Tumbleweed 
-
-```sh
-sudo zypper install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libXfixes-devel cmake alsa-lib-devel gstreamer-devel gstreamer-plugins-base-devel xdotool-devel
-```
-
-### Fedora 28 (CentOS 8)
-
-```sh
-sudo yum -y install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libxdo-devel libXfixes-devel pulseaudio-libs-devel cmake alsa-lib-devel
-```
-
-### Arch (Manjaro)
-
-```sh
-sudo pacman -Syu --needed unzip git cmake gcc curl wget yasm nasm zip make pkg-config clang gtk3 xdotool libxcb libxfixes alsa-lib pipewire
-```
-
-### 安装 vcpkg
-
-```sh
-git clone https://github.com/microsoft/vcpkg
-cd vcpkg
-git checkout 2023.04.15
-cd ..
-vcpkg/bootstrap-vcpkg.sh
-export VCPKG_ROOT=$HOME/vcpkg
-vcpkg/vcpkg install libvpx libyuv opus aom
-```
-
-### 修复 libvpx (仅仅针对 Fedora)
-
-```sh
-cd vcpkg/buildtrees/libvpx/src
-cd *
-./configure
-sed -i 's/CFLAGS+=-I/CFLAGS+=-fPIC -I/g' Makefile
-sed -i 's/CXXFLAGS+=-I/CXXFLAGS+=-fPIC -I/g' Makefile
-make
-cp libvpx.a $HOME/vcpkg/installed/x64-linux/lib/
-cd
-```
-
-### 构建
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-git clone https://github.com/rustdesk/rustdesk
+git clone --recursive https://github.com/Lannamokia/rustdesk.git
 cd rustdesk
-mkdir -p target/debug
-wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
-mv libsciter-gtk.so target/debug
-VCPKG_ROOT=$HOME/vcpkg cargo run
+git checkout feature/vhd-machine-auth-bridge
+git submodule update --init --recursive
 ```
 
-## 使用 Docker 编译
+如果你之前用上游 `.gitmodules` 克隆过，执行 `git submodule sync && git submodule update --init --recursive`。
 
-克隆版本库并构建 Docker 容器:
+## 编译
+
+### 上游构建（不启用桥接）
+
+不启用任一 feature 时，本 fork 是上游的严格超集，**直接套用上游构建说明**即可。完整依赖与命令请见 [`../README.md`](../README.md)。
+
+### 启用桥接（Windows MSVC，推荐）
+
+桥接当前仅支持 Windows（命名管道传输与 VHDMount 代理的依赖所致）。
+
+所需环境变量：
+
+```text
+VCPKG_ROOT             = C:\src\vcpkg
+VCPKG_DEFAULT_TRIPLET  = x64-windows-static
+VCPKGRS_DYNAMIC        = 0
+LIBCLANG_PATH          = <LLVM\x64\bin 路径>
+```
+
+随后填好开发版 `secret.sec`（见[密钥与 CI](#密钥与-ci)）或将相关变量以环境变量方式传入，然后：
 
 ```sh
-git clone https://github.com/rustdesk/rustdesk # 克隆Github存储库
-cd rustdesk # 进入文件夹
-docker build -t "rustdesk-builder" . # 构建容器
+# 生产 sidecar 构建（启用桥接 + 剥离主控端）
+cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+
+# 仅启用桥接（保留主控端 UI 用于开发）
+cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ```
 
-请注意：
-* 针对国内网络访问问题，可以做以下几点优化：  
-   1. Dockerfile 中修改系统的源到国内镜像
-      ```
-      在Dockerfile的RUN apt update之前插入两行：
-   
-      RUN sed -i "s|deb.debian.org|mirrors.aliyun.com|g" /etc/apt/sources.list && \
-          sed -i "s|security.debian.org|mirrors.aliyun.com|g" /etc/apt/sources.list
-      ```
-
-   2. 修改容器系统中的 cargo 源，在`RUN ./rustup.sh -y`后插入下面代码：
-
-      ```
-      RUN echo '[source.crates-io]' > ~/.cargo/config \
-       && echo 'registry = "https://github.com/rust-lang/crates.io-index"'  >> ~/.cargo/config \
-       && echo '# 替换成你偏好的镜像源'  >> ~/.cargo/config \
-       && echo "replace-with = 'sjtu'"  >> ~/.cargo/config \
-       && echo '# 上海交通大学'   >> ~/.cargo/config \
-       && echo '[source.sjtu]'   >> ~/.cargo/config \
-       && echo 'registry = "https://mirrors.sjtug.sjtu.edu.cn/git/crates.io-index"'  >> ~/.cargo/config \
-       && echo '' >> ~/.cargo/config
-      ```
-
-   3. Dockerfile 中加入代理的 env
-
-      ```
-      在User root后插入两行
-
-      ENV http_proxy=http://host:port
-      ENV https_proxy=http://host:port
-      ```
-
-   4. docker build 命令后面加上 proxy 参数
-
-      ```
-      docker build -t "rustdesk-builder" . --build-arg http_proxy=http://host:port --build-arg https_proxy=http://host:port
-      ```
-
-### 构建 RustDesk 程序
-
-然后, 每次需要构建应用程序时, 运行以下命令:
+### 验证
 
 ```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
+cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo test  --test feature_off_parity
+cargo test  -p build_support
 ```
 
-请注意:  
-* 因为需要缓存依赖项，首次构建一般很慢（国内网络会经常出现拉取失败，可以多试几次）。  
-* 如果您需要添加不同的构建参数，可以在指令末尾的`<OPTIONAL-ARGS>` 位置进行修改。例如构建一个"Release"版本，在指令后面加上` --release`即可。
-* 如果出现以下的提示，则是无权限问题，可以尝试把`-e PUID="$(id -u)" -e PGID="$(id -g)"`参数去掉。
-   ```
-   usermod: user user is currently used by process 1
-   groupmod: Permission denied.
-   groupmod: cannot lock /etc/group; try again later.
-   ```
-   > **原因：** 容器的 entrypoint 脚本会检测 UID 和 GID，在度判和给定的环境变量的不一致时，会强行修改 user 的 UID 和 GID 并重新运行。但在重启后读不到环境中的 UID 和 GID，然后再次进入判错重启环节
+最近一次本分支结果：0 错误 / 189 单元测试通过 / 6 + 8 集成测试 / 38 + 4 build_support 测试。
 
+## 密钥与 CI
 
-### 运行 RustDesk 程序
+桥接需要 5 个编译期输入：
 
-生成的可执行程序在 target 目录下，可直接通过指令运行调试 (Debug) 版本的 RustDesk:
-```sh
-target/debug/rustdesk
-```
+| 变量 | 用途 | 格式 |
+|---|---|---|
+| `HBBS_KEY` | RustDesk rendezvous server 公钥（覆盖 `RS_PUB_KEY`） | base64，解码后 32 字节 |
+| `HBBS_HOST` | rendezvous 服务器地址 | `host[:port[-port2]]` |
+| `HBBR_HOST` | relay 服务器地址 | `host[:port]` |
+| `VHD_BRIDGE_SECRET_HEX`（或 `_B64`） | 32 字节 HMAC 共享密钥 | 64 hex 字符 / 44 base64 字符 |
+| `VHD_BRIDGE_SECRET_VERSION` | 单调递增的密钥轮换版本号 | 非负整数 |
 
-或者您想运行发行 (Release) 版本:
+两种供给方式：
 
-```sh
-target/release/rustdesk
-```
+1. **本地开发** &mdash; 在仓库根目录创建 `secret.sec`，写入 `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`。该文件已被 [`.gitignore`](../.gitignore) 忽略。
+2. **CI** &mdash; 在 `Settings &rarr; Secrets and variables &rarr; Actions` 中以同名仓库密钥配置；[`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) 通过受掩码的环境变量注入。**`secret.sec` 不会被写入 CI runner**。
 
-请注意：
-* 请保证您运行的目录是在 RustDesk 库的根目录内，否则软件会读不到文件。
-* `install`、`run`等 Cargo 的子指令在容器内不可用，宿主机才行。
+`secret.sec` 与 `vhd_bridge_secret.bin` 均已加入 `.gitignore`，**严禁提交**。`scripts/check_bridge_strings.ps1` 是构建后兜底扫描，确保产物中无明文密钥泄漏。
 
-## 文件结构
+## 许可证与署名
 
-- **[libs/hbb_common](https://github.com/rustdesk/rustdesk/tree/master/libs/hbb_common)**: 视频编解码, 配置, tcp/udp 封装, protobuf, 文件传输相关文件系统操作函数, 以及一些其他实用函数
-- **[libs/scrap](https://github.com/rustdesk/rustdesk/tree/master/libs/scrap)**: 屏幕截取
-- **[libs/enigo](https://github.com/rustdesk/rustdesk/tree/master/libs/enigo)**: 平台相关的鼠标键盘输入
-- **[libs/clipboard](https://github.com/rustdesk/rustdesk/tree/master/libs/clipboard)**: Windows、Linux、macOS 的文件复制和粘贴实现
-- **[src/ui](https://github.com/rustdesk/rustdesk/tree/master/src/ui)**: 过时的 Sciter UI（已弃用）
-- **[src/server](https://github.com/rustdesk/rustdesk/tree/master/src/server)**: 被控端服务音频、剪切板、输入、视频服务、网络连接的实现
-- **[src/client.rs](https://github.com/rustdesk/rustdesk/tree/master/src/client.rs)**: 控制端
-- **[src/rendezvous_mediator.rs](https://github.com/rustdesk/rustdesk/tree/master/src/rendezvous_mediator.rs)**: 与[rustdesk-server](https://github.com/rustdesk/rustdesk-server)保持UDP通讯, 等待远程连接（通过打洞直连或者中继）
-- **[src/platform](https://github.com/rustdesk/rustdesk/tree/master/src/platform)**: 平台服务相关代码
-- **[flutter](https://github.com/rustdesk/rustdesk/tree/master/flutter)**: 适用于桌面和移动设备的 Flutter 代码
-- **[flutter/web/js](https://github.com/rustdesk/rustdesk/tree/master/flutter/web/js)**: Flutter Web版本中的Javascript代码
+本 fork 沿用上游 RustDesk 的许可证：**GNU Affero General Public License v3.0（AGPL-3.0）**。完整条款见 [`../LICENCE`](../LICENCE)，本 fork **不修改**许可证文本。
 
-## 截图
+- 上游 RustDesk 代码的著作权归上游 RustDesk 作者及贡献者所有，参见 <https://github.com/rustdesk/rustdesk>。
+- 本 fork 引入的修改（`vhd-bridge` / `controlled-only` 两个 feature 及其支持代码）同样以 AGPL-3.0 发布；下游用户保留 AGPL-3.0 授予的全部权利，包括对网络部署索取对应源代码的权利。
+- "RustDesk" 名称及 logo 归上游项目所有，本 fork 仅用于标识被修改的代码基础，符合自由软件 fork 项目对商标的合理使用惯例。
+- 通过 vcpkg 引入的第三方库（`libvpx`、`libyuv`、`opus`、`aom`）以及 Sciter SDK、Flutter 依赖等，各自保留原始许可证。
 
-![image](https://user-images.githubusercontent.com/71636191/113112362-ae4deb80-923b-11eb-957d-ff88daad4f06.png)
-
-![image](https://user-images.githubusercontent.com/71636191/113112619-f705a480-923b-11eb-911d-97e984ef52b6.png)
-
-![image](https://user-images.githubusercontent.com/71636191/113112857-3fbd5d80-923c-11eb-9836-768325faf906.png)
-
-![image](https://user-images.githubusercontent.com/71636191/135385039-38fdbd72-379a-422d-b97f-33df71fb1cec.png)
+使用本 fork 即表示同意 AGPL-3.0 条款及顶部的**免责声明**。

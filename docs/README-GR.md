@@ -1,171 +1,138 @@
 <p align="center">
   <img src="../res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
-  <a href="#Δωρεάν-δημόσιοι-διακομιστές">Διακομιστές</a> •
-  <a href="#Γενικά-βήματα-ώστε-να-κάνετε-build">Build</a> •
-  <a href="#Πως-να-κάνετε-build-στο-Docker">Docker</a> •
-  <a href="#Δομή-φακέλων">Δομή</a> •
-  <a href="#Στιγμιότυπα">Στιγμιότυπα</a><br>
-  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-DA.md">Dansk</a>]<br>
-  <b>Χρειαζόμαστε τη βοήθειά σας για να μεταφράσουμε αυτό το αρχείο README, το <a href="https://github.com/rustdesk/rustdesk/tree/master/src/lang">RustDesk UI</a> και το <a href="https://github.com/rustdesk/doc.rustdesk.com">Doc</a> στη μητρική σας γλώσσα</b>
+  <b>RustDesk &mdash; fork <code>Lannamokia</code> με τη γέφυρα ταυτοποίησης μηχανής VHD</b><br>
+  <a href="#κατάσταση-fork">Κατάσταση fork</a> &bull;
+  <a href="#τι-προσθέτει-το-fork">Προσθήκες</a> &bull;
+  <a href="#μεταγλώττιση">Μεταγλώττιση</a> &bull;
+  <a href="#μυστικά-και-ci">Μυστικά &amp; CI</a> &bull;
+  <a href="#άδεια-και-απόδοση">Άδεια</a><br>
+  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-DA.md">Dansk</a>] | [<a href="README-TR.md">Türkçe</a>] | [<a href="README-NO.md">Norsk</a>] | [<a href="README-RO.md">Română</a>]
 </p>
 
-Επικοινωνήστε μαζί μας μέσω: [Discord](https://discord.gg/nDceKgxnkV) | [Twitter](https://twitter.com/rustdesk) | [Reddit](https://www.reddit.com/r/rustdesk) | [YouTube](https://www.youtube.com/@rustdesk)
+> [!Important]
+> Αυτό το αποθετήριο είναι downstream fork του [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk). Πλήρης αγγλική τεκμηρίωση: [`../README.md`](../README.md).
+> Πνευματικά δικαιώματα, εμπορικά σήματα και η άδεια AGPL-3.0 του upstream παραμένουν αμετάβλητα &mdash; βλ. [Άδεια και απόδοση](#άδεια-και-απόδοση).
 
-[![RustDesk Server Pro](https://img.shields.io/badge/RustDesk%20Server%20Pro-%CE%A0%CF%81%CE%BF%CE%B7%CE%B3%CE%BC%CE%AD%CE%BD%CE%B5%CF%82%20%CE%94%CF%85%CE%BD%CE%B1%CF%84%CF%8C%CF%84%CE%B7%CF%84%CE%B5%CF%82-blue)](https://rustdesk.com/pricing.html)
+> [!Caution]
+> **Αποποίηση κατάχρησης:** οι upstream προγραμματιστές του RustDesk και οι συντηρητές αυτού του fork δεν ανέχονται και δεν υποστηρίζουν καμία ανήθικη ή παράνομη χρήση του λογισμικού. Μη εξουσιοδοτημένη πρόσβαση, έλεγχος ή παραβίαση ιδιωτικότητας απαγορεύονται αυστηρά. Οι συγγραφείς δεν ευθύνονται για τυχόν κατάχρηση.
 
-Ένα λογισμικό απομακρυσμένης επιφάνειας εργασίας, γραμμένο σε γλώσσα Rust. Δεν χρειάζεται κάποια παραμετροποίηση, λειτουργεί αμέσως μετά την εγκατάσταση. Έχετε τον πλήρη έλεγχο των δεδομένων σας, χωρίς να ανησυχείτε για την ασφάλειά τους. Μπορείτε να χρησιμοποιήσετε τους προκαθορισμένους διακομιστές rendezvous/αναμετάδοσης, [να εγκαταστήσετε τον δικό σας διακομιστή](https://rustdesk.com/server), ή [να αναπτύξετε ένα δικό σας διακομιστή rendezvous/αναμετάδοσης](https://github.com/rustdesk/rustdesk-server-demo).
+---
 
-![image](https://user-images.githubusercontent.com/71636191/171661982-430285f0-2e12-4b1d-9957-4a58e375304d.png)
+## Κατάσταση fork
 
-Το RustDesk ενθαρρύνει τη συνεισφορά όλων. Διαβάστε το [`docs/CONTRIBUTING.md`](CONTRIBUTING.md) για βοήθεια στο πως να ξεκινήσετε.
+| | |
+|---|---|
+| **Upstream** | [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk) (στο git ως remote `upstream`) |
+| **Αυτό το fork** | [`Lannamokia/rustdesk`](https://github.com/Lannamokia/rustdesk) |
+| **Ενεργός κλάδος** | `feature/vhd-machine-auth-bridge` |
+| **Υπομονάδα** | `libs/hbb_common` &rarr; [`Lannamokia/hbb_common`](https://github.com/Lannamokia/hbb_common), ίδιος κλάδος |
+| **Άδεια** | AGPL-3.0 (αμετάβλητη σε σχέση με upstream &mdash; βλ. [`LICENCE`](../LICENCE)) |
+| **Στόχος** | Εκτέλεση της ελεγχόμενης πλευράς του RustDesk ως sidecar του εξωτερικού πράκτορα VHDMount πάνω από μια ταυτοποιημένη και δεμένη με τη μηχανή γέφυρα. |
 
-[**Συχνές ερωτήσεις**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
+Όταν το `vhd-bridge` είναι **απενεργοποιημένο**, το παραγόμενο εκτελέσιμο συμπεριφέρεται όπως το upstream RustDesk &mdash; η αναλλοίωτη επαληθεύεται αυτόματα από το `tests/feature_off_parity.rs`.
 
-[**Κατεβάστε τα αρχεία**](https://github.com/rustdesk/rustdesk/releases)
+## Τι προσθέτει το fork
 
-[**NIGHTLY BUILD**](https://github.com/rustdesk/rustdesk/releases/tag/nightly)
+Ένα συνεκτικό υποσύστημα &mdash; **η γέφυρα ταυτοποίησης μηχανής VHD** &mdash; ελεγχόμενο από δύο Cargo features, **απενεργοποιημένα από προεπιλογή**:
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-    alt="Get it on F-Droid"
-    height="80">](https://f-droid.org/en/packages/com.carriez.flutter_hbb)
+- **`vhd-bridge`** &mdash; συμπεριλαμβάνει στο build τον worker της γέφυρας, την IPC καλωδίωση, το overlay UI συντήρησης και τα smoke tests.
+- **`controlled-only`** &mdash; αφαιρεί το UI και τους κώδικες του Controller (initiator), παράγοντας ένα μόνο-ελεγχόμενο binary· συνδυάζεται με το `vhd-bridge` για το παραγωγικό sidecar build.
 
-## Προαπαιτούμενα για build  
+Χωρίς ενεργές features, το `cargo run` και η ροή του upstream build λειτουργούν αμετάβλητα.
 
-Στις παραθυρικές εκδόσεις χρησιμοποιείται είτε το [sciter](https://sciter.com/) είτε το Flutter, τα παρακάτω βήματα είναι μόνο για το Sciter.
+### Κύριες αλλαγές
 
-Παρακαλώ κατεβάστε μόνοι σας την δυναμική βιβλιοθήκη sciter.
+- **`src/vhd_bridge/`** &ndash; worker named pipe, μηχανή καταστάσεων `Identify &rarr; Authenticate &rarr; PeerSet &rarr; Heartbeat &rarr; Approval`, HMAC-SHA256 με 32-byte κοινό μυστικό που εγχέεται κατά το build, backoff επανασύνδεσης, δομημένη παρατηρησιμότητα, log sink που αποκρύπτει μυστικά.
+- **`src/server/connection.rs`** &ndash; πύλη έγκρισης: πριν την αποδοχή εισερχόμενου peer, συμβουλεύεται το peer-set ταυτοποίησης μηχανής που διατηρεί η γέφυρα.
+- **`src/auth_2fa.rs`** &ndash; το 2FA επιβάλλεται OFF όσο η γέφυρα κυβερνά την ταυτοποίηση (επαληθεύεται από το `tests/smoke_2fa_disabled.rs`).
+- **`flutter/lib/desktop/widgets/maintenance_overlay.dart`** &ndash; overlay που αντικατοπτρίζει την κατάσταση της γέφυρας (`active / starting / lost`).
+- **`libs/build_support/`** &ndash; βοηθητικό crate κοινό για `build.rs` και CI: αυστηρή πύλη προαπαιτούμενων, ανεκτικός parser για `secret.sec`, έλεγχος συνέπειας με τη τεκμηρίωση πρωτοκόλλου.
+- **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; αναφορά πρωτοκόλλου σύρματος.
+- **`scripts/check_bridge_strings.ps1`** &ndash; σαρωτής διαρροών μετά το build: εγγυάται ότι κανένα plaintext byte από `HBBS Key` / `VHDMount Key` δεν διαρρέει στα παράγωγα.
+- **`.github/workflows/vhd-bridge.yml`** &mdash; μήτρα CI που χτίζει τα Windows artifacts feature-on / feature-off / controlled-only.
 
-[Windows](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.win/x64/sciter.dll) |
-[Linux](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so) |
-[MacOS](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.osx/libsciter.dylib)
+Πλήρης προδιαγραφή στο [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
-## Γενικά βήματα ώστε να κάνετε build
+## Κλωνοποίηση
 
-- Προετοιμάστε τα περιβάλλοντα προγραμματισμού Rust και C++
-
-- Εγκαταστήσετε το [vcpkg](https://github.com/microsoft/vcpkg), και ρυθμίστε σωστά την παράμετρο συστήματος `VCPKG_ROOT`
-
-  - Windows: vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
-  - Linux/MacOS: vcpkg install libvpx libyuv opus aom
-
-- Εκτελέστε `cargo run`
-
-## [Build](https://rustdesk.com/docs/en/dev/build/)
-
-## Πως να το κάνετε build στο Linux
-
-### Ubuntu 18 (Debian 10)
-
-```sh
-sudo apt install -y zip g++ gcc git curl wget nasm yasm libgtk-3-dev clang libxcb-randr0-dev libxdo-dev \
-        libxfixes-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libpulse-dev cmake make \
-        libclang-dev ninja-build libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
-```
-
-### openSUSE Tumbleweed 
+Το fork αλλάζει το URL της υπομονάδας `libs/hbb_common`· κλωνοποιήστε αναδρομικά:
 
 ```sh
-sudo zypper install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libXfixes-devel cmake alsa-lib-devel gstreamer-devel gstreamer-plugins-base-devel xdotool-devel
-```
-### Fedora 28 (CentOS 8)
-
-```sh
-sudo yum -y install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libxdo-devel libXfixes-devel pulseaudio-libs-devel cmake alsa-lib-devel
-```
-
-### Arch (Manjaro)
-
-```sh
-sudo pacman -Syu --needed unzip git cmake gcc curl wget yasm nasm zip make pkg-config clang gtk3 xdotool libxcb libxfixes alsa-lib pipewire
-```
-
-### Εγκατάσταση vcpkg
-
-```sh
-git clone https://github.com/microsoft/vcpkg
-cd vcpkg
-git checkout 2023.04.15
-cd ..
-vcpkg/bootstrap-vcpkg.sh
-export VCPKG_ROOT=$HOME/vcpkg
-vcpkg/vcpkg install libvpx libyuv opus aom
-```
-
-### Διόρθωση libvpx (για Fedora)
-
-```sh
-cd vcpkg/buildtrees/libvpx/src
-cd *
-./configure
-sed -i 's/CFLAGS+=-I/CFLAGS+=-fPIC -I/g' Makefile
-sed -i 's/CXXFLAGS+=-I/CXXFLAGS+=-fPIC -I/g' Makefile
-make
-cp libvpx.a $HOME/vcpkg/installed/x64-linux/lib/
-cd
-```
-
-### Build
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-git clone https://github.com/rustdesk/rustdesk
+git clone --recursive https://github.com/Lannamokia/rustdesk.git
 cd rustdesk
-mkdir -p target/debug
-wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
-mv libsciter-gtk.so target/debug
-VCPKG_ROOT=$HOME/vcpkg cargo run
+git checkout feature/vhd-machine-auth-bridge
+git submodule update --init --recursive
 ```
 
-## Πως να κάνετε build στο Docker
+Αν είχατε κλωνοποιήσει με το upstream `.gitmodules`: `git submodule sync && git submodule update --init --recursive`.
 
-Ξεκινήστε κλωνοποιώντας το αποθετήριο και κάνοντας build το docker container:
+## Μεταγλώττιση
+
+### Upstream build (χωρίς γέφυρα)
+
+Χωρίς ενεργά features, το fork είναι αυστηρό υπερσύνολο του upstream· οι οδηγίες upstream ισχύουν αμετάβλητες. Πλήρεις εξαρτήσεις και εντολές στο [`../README.md`](../README.md).
+
+### Build με γέφυρα (Windows MSVC, συνιστάται)
+
+Η γέφυρα προς το παρόν υποστηρίζει μόνο Windows (μεταφορά named pipe και πράκτορας VHDMount).
+
+Απαιτούμενο περιβάλλον:
+
+```text
+VCPKG_ROOT             = C:\src\vcpkg
+VCPKG_DEFAULT_TRIPLET  = x64-windows-static
+VCPKGRS_DYNAMIC        = 0
+LIBCLANG_PATH          = <διαδρομή προς LLVM\x64\bin>
+```
+
+Στη συνέχεια συμπληρώστε το dev-only `secret.sec` ή ορίστε τις αντίστοιχες env μεταβλητές, και:
 
 ```sh
-git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
-docker build -t "rustdesk-builder" .
+# Παραγωγικό sidecar build (γέφυρα ON, controller αφαιρεμένος)
+cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+
+# Μόνο γέφυρα (UI controller διατηρείται για dev)
+cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ```
 
-Στη συνέχεια, κάθε φορά που επιθυμείτε να κάνετε build την εφαρμογή, εκτελέστε την ακόλουθη εντολή:
+### Επαλήθευση
 
 ```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
+cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo test  --test feature_off_parity
+cargo test  -p build_support
 ```
 
-Σημειώστε ότι το πρώτο build μπορεί να διαρκέσει περισσότερο, ώστε να αποθηκευτούν στην προσωρινή μνήμη οι εξαρτήσεις, τα επόμενα build θα είναι ταχύτερα. Επιπλέον, εάν πρέπει να καθορίσετε διαφορετικές παραμέτρους στην εντολή build, μπορείτε να το κάνετε στο τέλος της εντολής με την χρήση `<OPTIONAL-ARGS>`. Για παράδειγμα, εάν επιθυμείτε να δημιουργήσετε μια βελτιστοποιημένη έκδοση της εφαρμογής, θα εκτελέσετε την παραπάνω εντολή ακολουθούμενη από το `--release`. Το εκτελέσιμο αρχείο θα είναι διαθέσιμο στον προκαθορισμένο φάκελο στο σύστημά σας και μπορεί να εκτελεστεί με:
+Τελευταία εκτέλεση σε αυτόν τον κλάδο: 0 σφάλματα / 189 unit / 6 + 8 ολοκλήρωσης / 38 + 4 build_support.
 
-```sh
-target/debug/rustdesk
-```
+## Μυστικά και CI
 
-Ή στην περίπτωση μιας βελτιστοποιημένης έκδοσης της εφαρμογής εκτελέστε:
+Η γέφυρα απαιτεί πέντε εισόδους κατά το build:
 
-```sh
-target/release/rustdesk
-```
+| Μεταβλητή | Σκοπός | Μορφή |
+|---|---|---|
+| `HBBS_KEY` | Δημόσιο κλειδί διακομιστή rendezvous (επικαλύπτει το `RS_PUB_KEY`) | base64, 32 bytes μετά την αποκωδικοποίηση |
+| `HBBS_HOST` | Host του διακομιστή rendezvous | `host[:port[-port2]]` |
+| `HBBR_HOST` | Host του διακομιστή relay | `host[:port]` |
+| `VHD_BRIDGE_SECRET_HEX` (ή `_B64`) | Κοινό μυστικό HMAC 32 bytes | 64 hex / 44 base64 |
+| `VHD_BRIDGE_SECRET_VERSION` | Μονοτονική έκδοση εναλλαγής κλειδιού | μη αρνητικός ακέραιος |
 
-Βεβαιωθείτε ότι εκτελείτε αυτές τις εντολές από την αρχική διαδρομή του αποθετηρίου του RustDesk, διαφορετικά η εφαρμογή ενδέχεται να μην είναι σε θέση να βρεί τους απαιτούμενους πόρους. Σημειώστε επίσης ότι άλλες υποεντολές, όπως το `install` ή το `run` δεν υποστηρίζονται επί του παρόντος μέσω αυτής της μεθόδου καθώς θα εγκαταστήσουν ή θα εκτελέσουν το πρόγραμμα εντός του container αντί του κεντρικού υπολογιστή.
+Δύο διαδρομές:
 
-## Δομή φακέλων
+1. **Τοπική ανάπτυξη** &mdash; συμπληρώστε το `secret.sec` στη ρίζα του αποθετηρίου με γραμμές `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. Το αρχείο αγνοείται από το [`.gitignore`](../.gitignore).
+2. **CI** &mdash; ρυθμίστε τα ίδια ονόματα ως repository secrets στο GitHub Actions· το [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) τα εγχέει ως καλυμμένες env μεταβλητές. **Το `secret.sec` δεν υλοποιείται ποτέ στους runners**.
 
-- **[libs/hbb_common](https://github.com/rustdesk/rustdesk/tree/master/libs/hbb_common)**: video codec, config, tcp/udp wrapper, protobuf, fs functions for file transfer, and some other utility functions
-- **[libs/scrap](https://github.com/rustdesk/rustdesk/tree/master/libs/scrap)**: screen capture
-- **[libs/enigo](https://github.com/rustdesk/rustdesk/tree/master/libs/enigo)**: platform specific keyboard/mouse control
-- **[src/ui](https://github.com/rustdesk/rustdesk/tree/master/src/ui)**: GUI
-- **[src/server](https://github.com/rustdesk/rustdesk/tree/master/src/server)**: audio/clipboard/input/video services, and network connections
-- **[src/client.rs](https://github.com/rustdesk/rustdesk/tree/master/src/client.rs)**: start a peer connection
-- **[src/rendezvous_mediator.rs](https://github.com/rustdesk/rustdesk/tree/master/src/rendezvous_mediator.rs)**: Communicate with [rustdesk-server](https://github.com/rustdesk/rustdesk-server), wait for remote direct (TCP hole punching) or relayed connection
-- **[src/platform](https://github.com/rustdesk/rustdesk/tree/master/src/platform)**: platform specific code
-- **[flutter](https://github.com/rustdesk/rustdesk/tree/master/flutter)**: Flutter code for mobile
-- **[flutter/web/js](https://github.com/rustdesk/rustdesk/tree/master/flutter/web/js)**: JavaScript for Flutter web client
+`secret.sec` και `vhd_bridge_secret.bin` βρίσκονται και τα δύο στο `.gitignore` και **δεν πρέπει ποτέ να γίνουν commit**. Το `scripts/check_bridge_strings.ps1` είναι το δίχτυ ασφαλείας μετά το build.
 
-## Στιγμιότυπα
+## Άδεια και απόδοση
 
-![image](https://user-images.githubusercontent.com/71636191/113112362-ae4deb80-923b-11eb-957d-ff88daad4f06.png)
+Το fork διανέμεται με την ίδια άδεια με το upstream: **GNU Affero General Public License v3.0 (AGPL-3.0)**. Πλήρες κείμενο στο [`../LICENCE`](../LICENCE)· το fork **δεν τροποποιεί** την άδεια.
 
-![image](https://user-images.githubusercontent.com/71636191/113112619-f705a480-923b-11eb-911d-97e984ef52b6.png)
+- Όλα τα πνευματικά δικαιώματα στον κώδικα του upstream RustDesk παραμένουν στους upstream συγγραφείς και συνεισφέροντες, βλ. <https://github.com/rustdesk/rustdesk>.
+- Οι τροποποιήσεις που εισάγει αυτό το fork (features `vhd-bridge` / `controlled-only` και ο υποστηρικτικός κώδικας) διανέμονται επίσης υπό AGPL-3.0· οι downstream χρήστες διατηρούν όλα τα δικαιώματα που παραχωρεί η AGPL-3.0, συμπεριλαμβανομένου του δικαιώματος στον αντίστοιχο πηγαίο κώδικα για κάθε δικτυακή ανάπτυξη.
+- Το όνομα και το λογότυπο "RustDesk" ανήκουν στο upstream έργο· το fork τα χρησιμοποιεί μόνο για να αναγνωρίσει την τροποποιημένη βάση κώδικα, σύμφωνα με τη δίκαιη χρήση εμπορικών σημάτων σε forks ελεύθερου λογισμικού.
+- Βιβλιοθήκες τρίτων (vcpkg: `libvpx`, `libyuv`, `opus`, `aom`· Sciter SDK· εξαρτήσεις Flutter) διατηρούν τις αρχικές τους άδειες.
 
-![image](https://user-images.githubusercontent.com/71636191/113112857-3fbd5d80-923c-11eb-9836-768325faf906.png)
-
-![image](https://user-images.githubusercontent.com/71636191/135385039-38fdbd72-379a-422d-b97f-33df71fb1cec.png)
+Η χρήση αυτού του fork συνιστά αποδοχή της AGPL-3.0 και της **αποποίησης κατάχρησης** στην αρχή του αρχείου.

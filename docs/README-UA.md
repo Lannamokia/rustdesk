@@ -1,174 +1,138 @@
 <p align="center">
-  <img src="../res/logo-header.svg" alt="RustDesk - Ваша віддалена стільниця"><br>
-  <a href="#публічні-сервери">Сервери</a> •
-  <a href="#кроки-для-збірки">Збирання</a> •
-  <a href="#як-зібрати-за-допомогою-docker">Docker</a> •
-  <a href="#структура-файлів">Структура</a> •
-  <a href="#знімки-екрана">Знімки екрана</a><br>
-  [<a href="../README.md">English</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-DA.md">Dansk</a>] | [<a href="README-GR.md">Ελληνικά</a>] | [<a href="README-TR.md">Türkçe</a>]<br>
-  <b>Нам потрібна ваша допомога для перекладу цього README, <a href="https://github.com/rustdesk/rustdesk/tree/master/src/lang">інтерфейсу</a> та <a href="https://github.com/rustdesk/doc.rustdesk.com">документації</a> RustDesk вашою рідною мовою</B>
+  <img src="../res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
+  <b>RustDesk &mdash; форк <code>Lannamokia</code> з мостом машинної автентифікації VHD</b><br>
+  <a href="#стан-форку">Стан форку</a> &bull;
+  <a href="#що-додає-цей-форк">Зміни</a> &bull;
+  <a href="#збірка">Збірка</a> &bull;
+  <a href="#секрети-та-ci">Секрети &amp; CI</a> &bull;
+  <a href="#ліцензія-та-атрибуція">Ліцензія</a><br>
+  [<a href="../README.md">English</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-DA.md">Dansk</a>] | [<a href="README-GR.md">Ελληνικά</a>] | [<a href="README-TR.md">Türkçe</a>] | [<a href="README-NO.md">Norsk</a>] | [<a href="README-RO.md">Română</a>]
 </p>
 
-Спілкування з нами: [Discord](https://discord.gg/nDceKgxnkV) | [Twitter](https://twitter.com/rustdesk) | [Reddit](https://www.reddit.com/r/rustdesk) | [YouTube](https://www.youtube.com/@rustdesk)
+> [!Important]
+> Цей репозиторій є downstream-форком [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk). Повна англомовна документація: [`../README.md`](../README.md).
+> Авторські права upstream, торговельні марки та ліцензія AGPL-3.0 не змінено &mdash; див. [Ліцензія та атрибуція](#ліцензія-та-атрибуція).
 
-[![RustDesk Server Pro](https://img.shields.io/badge/RustDesk%20Server%20Pro-%D0%A0%D0%BE%D0%B7%D1%88%D0%B8%D1%80%D0%B5%D0%BD%D1%96%20%D0%A4%D1%83%D0%BD%D0%BA%D1%86%D1%96%D1%97-blue)](https://rustdesk.com/pricing.html)
+> [!Caution]
+> **Застереження щодо зловживань:** розробники upstream-RustDesk та супровідники цього форка не схвалюють і не підтримують жодного неетичного чи незаконного використання цього ПЗ. Несанкціонований доступ, керування або порушення приватності суворо заборонені. Автори не несуть відповідальності за будь-яке зловживання застосунком.
 
-Ще один застосунок для віддаленого керування стільницею, написаний на Rust. Працює з коробки, не потребує налаштування. Ви повністю контролюєте свої дані, не турбуючись про безпеку. Ви можете використовувати наш сервер ретрансляції, [налаштувати свій власний](https://rustdesk.com/server), або [написати свій власний сервер ретрансляції](https://github.com/rustdesk/rustdesk-server-demo).
+---
 
-![image](https://user-images.githubusercontent.com/71636191/171661982-430285f0-2e12-4b1d-9957-4a58e375304d.png)
+## Стан форку
 
-RustDesk вітає внесок кожного. Ознайомтеся з [CONTRIBUTING.md](CONTRIBUTING.md), щоб отримати допомогу на початковому етапі.
+| | |
+|---|---|
+| **Upstream** | [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk) (у git це remote `upstream`) |
+| **Цей форк** | [`Lannamokia/rustdesk`](https://github.com/Lannamokia/rustdesk) |
+| **Активна гілка** | `feature/vhd-machine-auth-bridge` |
+| **Субмодуль** | `libs/hbb_common` &rarr; [`Lannamokia/hbb_common`](https://github.com/Lannamokia/hbb_common), та сама гілка |
+| **Ліцензія** | AGPL-3.0 (без змін відносно upstream &mdash; див. [`LICENCE`](../LICENCE)) |
+| **Мета** | Запускати керовану сторону RustDesk як sidecar зовнішнього агента VHDMount через автентифікований міст, прив'язаний до машини. |
 
-[**ЧаПи**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
+Коли `vhd-bridge` **вимкнено**, артефакт збірки поведінково ідентичний upstream-RustDesk &mdash; інваріант перевіряється `tests/feature_off_parity.rs`.
 
-[**ЗАВАНТАЖЕННЯ ЗАСТОСУНКУ**](https://github.com/rustdesk/rustdesk/releases)
+## Що додає цей форк
 
-[**НІЧНІ ЗБІРКИ**](https://github.com/rustdesk/rustdesk/releases/tag/nightly)
+Зв'язну підсистему &mdash; **міст машинної автентифікації VHD** &mdash; керовану двома Cargo-фічами, **за замовчуванням вимкненими**:
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-    alt="Get it on F-Droid"
-    height="80">](https://f-droid.org/en/packages/com.carriez.flutter_hbb)
+- **`vhd-bridge`** &mdash; вкомпільовує воркер моста, IPC-обв'язку, UI-оверлей обслуговування та smoke-тести.
+- **`controlled-only`** &mdash; видаляє Controller (initiator) UI та шляхи коду, лишаючи лише-керовану бінарь; поєднується з `vhd-bridge` для бойової sidecar-збірки.
 
-## Залежності
+Без активних фіч `cargo run` та upstream-збірка працюють без змін.
 
-Стільничні версії використовують Flutter чи Sciter (застаріле) для графічного інтерфейсу. Ця інструкція лише для Sciter, оскільки він є більш простим та дружнім для початківців. Перегляньте [CI](https://github.com/rustdesk/rustdesk/blob/master/.github/workflows/flutter-build.yml) для збірки версії на Flutter.
+### Основні зміни
 
-Будь ласка, завантажте динамічну бібліотеку Sciter самостійно.
+- **`src/vhd_bridge/`** &ndash; named-pipe-воркер, скінченний автомат `Identify &rarr; Authenticate &rarr; PeerSet &rarr; Heartbeat &rarr; Approval`, HMAC-SHA256 на 32-байтовому спільному секреті, що інжектується під час збірки, backoff перепідключень, структурована спостережуваність, log sink з редагуванням секретів.
+- **`src/server/connection.rs`** &ndash; шлюз підтвердження: перед прийняттям вхідного peer-а звертається до набору machine-auth-peer-ів, який підтримує міст.
+- **`src/auth_2fa.rs`** &ndash; 2FA примусово вимкнено, поки міст керує автентифікацією (перевіряє `tests/smoke_2fa_disabled.rs`).
+- **`flutter/lib/desktop/widgets/maintenance_overlay.dart`** &ndash; UI-оверлей зі станом моста (`active / starting / lost`).
+- **`libs/build_support/`** &ndash; допоміжна crate для `build.rs` та CI: суворий шлюз передумов, толерантний парсер `secret.sec`, тест узгодженості з документом протоколу.
+- **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; референс протоколу.
+- **`scripts/check_bridge_strings.ps1`** &ndash; пост-збірковий сканер витоків: гарантує, що відкриті байти `HBBS Key` / `VHDMount Key` не потраплять у артефакти.
+- **`.github/workflows/vhd-bridge.yml`** &mdash; CI-матриця, що збирає Windows-артефакти feature-on / feature-off / controlled-only.
 
-[Windows](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.win/x64/sciter.dll) |
-[Linux](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so) |
-[macOS](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.osx/libsciter.dylib)
+Повна специфікація: [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
-## Кроки для збірки
+## Клонування
 
-- Підготуйте середовище розробки Rust і середовище збирання C++.
-
-- Встановіть [vcpkg](https://github.com/microsoft/vcpkg), і правильно встановіть змінну `VCPKG_ROOT`.
-
-  - Windows: vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
-  - Linux/macOS: vcpkg install libvpx libyuv opus aom
-
-- Запустіть `cargo run`
-
-## [Збирання](https://rustdesk.com/docs/en/dev/build/)
-
-## Як зібрати на Linux 
-
-### Ubuntu 18 (Debian 10)
-
-```sh
-sudo apt install -y zip g++ gcc git curl wget nasm yasm libgtk-3-dev clang libxcb-randr0-dev libxdo-dev \
-        libxfixes-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libpulse-dev cmake make \
-        libclang-dev ninja-build libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libpam0g-dev
-```
-
-### openSUSE Tumbleweed
+Форк змінює URL субмодуля `libs/hbb_common`, тож клонуйте рекурсивно:
 
 ```sh
-sudo zypper install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libXfixes-devel cmake alsa-lib-devel gstreamer-devel gstreamer-plugins-base-devel xdotool-devel pam-devel
-```
-
-### Fedora 28 (CentOS 8)
-
-```sh
-sudo yum -y install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libxdo-devel libXfixes-devel pulseaudio-libs-devel cmake alsa-lib-devel gstreamer1-devel gstreamer1-plugins-base-devel pam-devel
-```
-
-### Arch (Manjaro)
-
-```sh
-sudo pacman -Syu --needed unzip git cmake gcc curl wget yasm nasm zip make pkg-config clang gtk3 xdotool libxcb libxfixes alsa-lib pipewire
-```
-
-### Встановлення vcpkg
-
-```sh
-git clone https://github.com/microsoft/vcpkg
-cd vcpkg
-git checkout 2023.04.15
-cd ..
-vcpkg/bootstrap-vcpkg.sh
-export VCPKG_ROOT=$HOME/vcpkg
-vcpkg/vcpkg install libvpx libyuv opus aom
-```
-
-### Виправлення libvpx (для Fedora)
-
-```sh
-cd vcpkg/buildtrees/libvpx/src
-cd *
-./configure
-sed -i 's/CFLAGS+=-I/CFLAGS+=-fPIC -I/g' Makefile
-sed -i 's/CXXFLAGS+=-I/CXXFLAGS+=-fPIC -I/g' Makefile
-make
-cp libvpx.a $HOME/vcpkg/installed/x64-linux/lib/
-cd
-```
-
-### Збирання
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-git clone https://github.com/rustdesk/rustdesk
+git clone --recursive https://github.com/Lannamokia/rustdesk.git
 cd rustdesk
-mkdir -p target/debug
-wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
-mv libsciter-gtk.so target/debug
-VCPKG_ROOT=$HOME/vcpkg cargo run
+git checkout feature/vhd-machine-auth-bridge
+git submodule update --init --recursive
 ```
 
-## Як зібрати за допомогою Docker
+Якщо вже клонували з upstream-овим `.gitmodules`: `git submodule sync && git submodule update --init --recursive`.
 
-Почніть з клонування сховища та створення docker-контейнера:
+## Збірка
+
+### Upstream-збірка (без моста)
+
+Без активних фіч цей форк є строгою надмножиною upstream; інструкції upstream чинні без змін. Повні залежності та команди див. у [`../README.md`](../README.md).
+
+### Збірка з мостом (Windows MSVC, рекомендовано)
+
+Міст наразі підтримує лише Windows (named-pipe-транспорт та VHDMount-агент).
+
+Необхідні змінні середовища:
+
+```text
+VCPKG_ROOT             = C:\src\vcpkg
+VCPKG_DEFAULT_TRIPLET  = x64-windows-static
+VCPKGRS_DYNAMIC        = 0
+LIBCLANG_PATH          = <шлях до LLVM\x64\bin>
+```
+
+Далі заповніть dev-only `secret.sec` або задайте відповідні env-змінні, тоді:
 
 ```sh
-git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
-docker build -t "rustdesk-builder" .
+# Бойова sidecar-збірка (міст увімкнено, контролер прибрано)
+cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+
+# Лише міст (UI-контролера лишається для розробки)
+cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ```
 
-Надалі щоразу, коли вам буде потрібно зібрати застосунок, запускайте таку команду:
+### Верифікація
 
 ```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
+cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo test  --test feature_off_parity
+cargo test  -p build_support
 ```
 
-Зверніть увагу, що перша збірка може зайняти більше часу, перш ніж залежності будуть кешовані, але наступні збірки будуть виконуватися швидше. Крім того, якщо вам потрібно вказати інші аргументи для команди збірки, ви можете зробити це в кінці команди у змінній `<OPTIONAL-ARGS>`. Наприклад, якщо ви хочете створити оптимізовану версію, ви маєте запустити наведену вище команду і в кінці рядка додати `--release`. Отриманий виконуваний файл буде доступний у цільовій папці вашої системи і може бути запущений за допомогою:
+Останній запуск у цій гілці: 0 помилок / 189 unit / 6 + 8 інтеграційних / 38 + 4 build_support.
 
-```sh
-target/debug/rustdesk
-```
+## Секрети та CI
 
-Або, якщо ви використовуєте виконуваний файл релізу:
+Міст вимагає п'ять входів на час збірки:
 
-```sh
-target/release/rustdesk
-```
+| Змінна | Призначення | Формат |
+|---|---|---|
+| `HBBS_KEY` | Публічний ключ rendezvous-сервера (перекриває `RS_PUB_KEY`) | base64, після декодування 32 байти |
+| `HBBS_HOST` | Хост rendezvous-сервера | `host[:port[-port2]]` |
+| `HBBR_HOST` | Хост relay-сервера | `host[:port]` |
+| `VHD_BRIDGE_SECRET_HEX` (або `_B64`) | 32-байтовий спільний HMAC-секрет | 64 hex / 44 base64 |
+| `VHD_BRIDGE_SECRET_VERSION` | Монотонна версія ротації ключа | невід'ємне ціле |
 
-Будь ласка, переконайтеся, що ви запускаєте ці команди з кореня сховища RustDesk, інакше додаток не зможе знайти необхідні ресурси. Також зверніть увагу, що інші cargo підкоманди, такі як `install` або `run`, наразі не підтримуються цим методом, оскільки вони будуть встановлювати або запускати програму всередині контейнера, а не на хості.
+Два шляхи:
 
-## Структура файлів
+1. **Локальна розробка** &mdash; заповніть `secret.sec` у корені репозиторію рядками `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. Файл ігнорується через [`.gitignore`](../.gitignore).
+2. **CI** &mdash; ті ж імена як repository-secrets у GitHub Actions; [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) інжектує їх як замасковані env-змінні. **`secret.sec` ніколи не матеріалізується на runner-ах**.
 
-- **[libs/hbb_common](https://github.com/rustdesk/rustdesk/tree/master/libs/hbb_common)**: відеокодек, конфіг, обгортка tcp/udp, protobuf, функції fs для передавання файлів і деякі інші службові функції
-- **[libs/scrap](https://github.com/rustdesk/rustdesk/tree/master/libs/scrap)**: захоплення екрана
-- **[libs/enigo](https://github.com/rustdesk/rustdesk/tree/master/libs/enigo)**: специфічне для платформи керування клавіатурою/мишею
-- **[libs/clipboard](https://github.com/rustdesk/rustdesk/tree/master/libs/clipboard)**: реалізація копіювання та вставлення файлів для Windows, Linux, macOS.
-- **[src/ui](https://github.com/rustdesk/rustdesk/tree/master/src/ui)**: графічний інтерфейс користувача
-- **[src/server](https://github.com/rustdesk/rustdesk/tree/master/src/server)**: сервіси аудіо/буфера обміну/вводу/відео та мережевих підключень
-- **[src/client.rs](https://github.com/rustdesk/rustdesk/tree/master/src/client.rs)**: однорангове зʼєднання
-- **[src/rendezvous_mediator.rs](https://github.com/rustdesk/rustdesk/tree/master/src/rendezvous_mediator.rs)**: комунікація з [rustdesk-server](https://github.com/rustdesk/rustdesk-server), очікування віддаленого прямого (обхід TCP NAT) або ретрансльованого зʼєднання
-- **[src/platform](https://github.com/rustdesk/rustdesk/tree/master/src/platform)**: специфічний для платформи код
-- **[flutter](https://github.com/rustdesk/rustdesk/tree/master/flutter)**: код Flutter для мобільних пристроїв 
-- **[flutter/web/js](https://github.com/rustdesk/rustdesk/tree/master/flutter/web/js)**: JavaScript для веб клієнта на Flutter
+`secret.sec` і `vhd_bridge_secret.bin` обидва в `.gitignore` і **ніколи** не повинні комітитися. `scripts/check_bridge_strings.ps1` &mdash; страхувальна сітка після збірки.
 
-## Знімки екрана
+## Ліцензія та атрибуція
 
-![Менеджер зʼєднань](https://github.com/rustdesk/rustdesk/assets/28412477/db82d4e7-c4bc-4823-8e6f-6af7eadf7651)
+Цей форк поширюється під тією ж ліцензією, що й upstream: **GNU Affero General Public License v3.0 (AGPL-3.0)**. Повний текст у [`../LICENCE`](../LICENCE); цей форк ліцензію **не змінює**.
 
-![Підключення до ПК з Windows](https://github.com/rustdesk/rustdesk/assets/28412477/9baa91e9-3362-4d06-aa1a-7518edcbd7ea)
+- Усі авторські права на upstream-кодову базу RustDesk належать upstream-авторам і контриб'юторам, див. <https://github.com/rustdesk/rustdesk>.
+- Зміни цього форка (фічі `vhd-bridge` / `controlled-only` та супровідний код) також поширюються під AGPL-3.0; downstream-користувачі зберігають усі права, надані AGPL-3.0, зокрема право на отримання відповідного джерельного коду під час будь-якого мережевого розгортання.
+- Назва та логотип "RustDesk" належать upstream-проєкту; форк використовує їх лише для ідентифікації модифікованої кодової бази в межах добросовісного використання торговельних марок у форках вільного ПЗ.
+- Сторонні бібліотеки (vcpkg: `libvpx`, `libyuv`, `opus`, `aom`; Sciter SDK; залежності Flutter) зберігають свої оригінальні ліцензії.
 
-![Передача файлів](https://github.com/rustdesk/rustdesk/assets/28412477/39511ad3-aa9a-4f8c-8947-1cce286a46ad)
-
-![Тунелювання TCP](https://github.com/rustdesk/rustdesk/assets/28412477/78e8708f-e87e-4570-8373-1360033ea6c5)
-
+Користуючись форком, ви погоджуєтеся з умовами AGPL-3.0 та **застереженням щодо зловживань** на початку файлу.
