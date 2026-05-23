@@ -551,24 +551,37 @@ jobs:
   controlled-windows:
     name: Controlled / Windows + vhd-bridge
     runs-on: windows-2022
-    env:
-      VHD_BRIDGE_SECRET_HEX: ${{ secrets.VHD_BRIDGE_SECRET_HEX }}
-      VHD_BRIDGE_SECRET_B64: ${{ secrets.VHD_BRIDGE_SECRET_B64 }}
-      VHD_BRIDGE_SECRET_VERSION: ${{ secrets.VHD_BRIDGE_SECRET_VERSION }}
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Verify bridge secret presence
+      # Inject secrets into $GITHUB_ENV individually, only when the repo secret
+      # is actually populated.  An unset GitHub-Actions secret expands to an
+      # empty string in `${{ secrets.X }}`, and `std::env::var().ok()` in
+      # build.rs treats `Some("")` as "set".  resolve_shared_secret then sees
+      # *both* HEX and B64 as present and rejects the build with a "mutually
+      # exclusive" error.  Setting only what's truly there keeps the
+      # build-script's priority order (HEX > B64 > .bin > secret.sec) honest.
+      - name: Inject vhd-bridge build secrets
         shell: bash
+        env:
+          IN_HEX: ${{ secrets.VHD_BRIDGE_SECRET_HEX }}
+          IN_B64: ${{ secrets.VHD_BRIDGE_SECRET_B64 }}
+          IN_VER: ${{ secrets.VHD_BRIDGE_SECRET_VERSION }}
         run: |
-          # Don't echo the values themselves — only confirm that one of HEX/B64
-          # is set.  Without a secret, build.rs would fall back to lenient mode
-          # which is fine for PRs from forks but produces a useless artifact.
-          if [ -z "${VHD_BRIDGE_SECRET_HEX:-}" ] && [ -z "${VHD_BRIDGE_SECRET_B64:-}" ]; then
-            echo "::warning::No VHD_BRIDGE_SECRET_* env set — controlled build will run with the lenient build.rs fallback (no secret embedded)."
+          if [ -n "${IN_HEX:-}" ]; then
+            echo "VHD_BRIDGE_SECRET_HEX=${IN_HEX}" >> "$GITHUB_ENV"
+            echo "secret source: hex"
+          elif [ -n "${IN_B64:-}" ]; then
+            echo "VHD_BRIDGE_SECRET_B64=${IN_B64}" >> "$GITHUB_ENV"
+            echo "secret source: b64"
+          else
+            echo "::warning::No VHD_BRIDGE_SECRET_HEX or _B64 secret set — build.rs will fall back to lenient mode."
+          fi
+          if [ -n "${IN_VER:-}" ]; then
+            echo "VHD_BRIDGE_SECRET_VERSION=${IN_VER}" >> "$GITHUB_ENV"
           fi
           if [ -z "${HBBS_KEY:-}" ] || [ -z "${HBBS_HOST:-}" ] || [ -z "${HBBR_HOST:-}" ]; then
             echo "::warning::Build_Prereq_Vars (HBBS_KEY/HOST, HBBR_HOST) not all set — build.rs gate will stay lenient."
