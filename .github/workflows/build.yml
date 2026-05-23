@@ -121,7 +121,10 @@ jobs:
           # SDK (3.24.5) pins meta 1.15.0 and rejects test_api 0.7.11 outright.
           # Without the overrides pub resolves matcher/test_api transitively.
           rm -f flutter/pubspec.lock
-          sed -i -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          # -i.bak form is the only invocation accepted by BOTH GNU sed (Linux runners)
+          # AND BSD sed (macOS runners).  Strip the .bak after.
+          sed -i.bak -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          rm -f flutter/pubspec.yaml.bak
           pushd flutter
           # The bridge codegen path inside upstream pinned an older extended_text
           # to keep its analyzer happy.  Mirror that here.
@@ -207,7 +210,10 @@ jobs:
           # Local Flutter 3.32+ flutter_test pins these; CI Flutter 3.24.5 pins
           # meta 1.15.0 and rejects test_api 0.7.11 — drop the overrides so
           # pub resolves matcher/test_api transitively from glados/test.
-          sed -i -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          # -i.bak form is the only invocation accepted by BOTH GNU sed (Linux runners)
+          # AND BSD sed (macOS runners).  Strip the .bak after.
+          sed -i.bak -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          rm -f flutter/pubspec.yaml.bak
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@v1
@@ -303,7 +309,10 @@ jobs:
       - name: Reset flutter/pubspec.lock and SDK-incompatible overrides
         run: |
           rm -f flutter/pubspec.lock
-          sed -i -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          # -i.bak form is the only invocation accepted by BOTH GNU sed (Linux runners)
+          # AND BSD sed (macOS runners).  Strip the .bak after.
+          sed -i.bak -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          rm -f flutter/pubspec.yaml.bak
 
       - uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -386,7 +395,10 @@ jobs:
       - name: Reset flutter/pubspec.lock and SDK-incompatible overrides
         run: |
           rm -f flutter/pubspec.lock
-          sed -i -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          # -i.bak form is the only invocation accepted by BOTH GNU sed (Linux runners)
+          # AND BSD sed (macOS runners).  Strip the .bak after.
+          sed -i.bak -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          rm -f flutter/pubspec.yaml.bak
 
       - name: Restore native libraries (all ABIs)
         uses: actions/download-artifact@v4
@@ -471,7 +483,10 @@ jobs:
       - name: Reset flutter/pubspec.lock and SDK-incompatible overrides
         run: |
           rm -f flutter/pubspec.lock
-          sed -i -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          # -i.bak form is the only invocation accepted by BOTH GNU sed (Linux runners)
+          # AND BSD sed (macOS runners).  Strip the .bak after.
+          sed -i.bak -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          rm -f flutter/pubspec.yaml.bak
 
       - name: Setup vcpkg with GitHub Actions binary cache
         uses: lukka/run-vcpkg@v11
