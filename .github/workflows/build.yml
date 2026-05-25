@@ -29,12 +29,15 @@ name: build
 on:
   workflow_dispatch:
   push:
-    # Feature branches reach CI via their pull_request below; listing them
-    # here as well would double-fire (push + pull_request:synchronize) for
-    # every commit pushed while the PR is open.  master has no incoming PR
-    # against itself, so it stays on the push trigger.
+    # master always builds on push.  feature/vhd-machine-auth-bridge is
+    # listed here too so commits pushed to it run CI even when the
+    # corresponding PR is closed (or hasn't been opened yet).  When the
+    # PR is open, the same commit will also match `pull_request:
+    # synchronize` below; the `concurrency:` block beneath this `on:`
+    # cancels the older of the two runs so we don't pay for both.
     branches:
       - master
+      - feature/vhd-machine-auth-bridge
     paths-ignore:
       - "docs/**"
       - "README.md"
