@@ -606,12 +606,32 @@ pub async fn start_server(is_server: bool, no_server: bool) {
     //     (task 10.1 — the existing sink stays in place and the
     //     bridge writer simply drains its empty ring buffer).
     //
-    // Both calls are idempotent — the recursive `start_server(true|false)`
-    // re-entrancy in this fn (the `--server` retry path below) reaches
-    // them on every iteration; `OnceLock` guards inside both `start`
-    // and `log_sink::install` keep this single-spawn / single-install.
+    // `is_server` guard: the bridge is a server-side concept (it talks
+    // to VHDMount as the controlled-end identity).  Without this guard,
+    // the UI-fallback path in `core_main.rs:242`
+    // (`start_server(false, no_server)`) would spawn the bridge worker
+    // inside the user-token UI process running in the active session;
+    // that worker then connects \\.\pipe\VHDMount.RustDeskBridge under
+    // the wrong identity, and the peer-image probe inside
+    // `pipe::open_and_verify` fails to `OpenProcess` the LocalSystem
+    // VHDMount peer (cross-session DACL / no SeDebug), so the worker
+    // does an immediate `client.shutdown()` --- VHDMount sees a
+    // before_first_byte clean EOF.  Confirmed against the PID 4108 =
+    // RustDesk.exe (UI process, SessionId=1) report from VHDMount.
+    // Restricting the spawn to `is_server == true` keeps the worker
+    // exclusive to the LocalSystem `--server` subprocess and to the
+    // intra-process recursive `start_server(true, false)` retry path
+    // below.  `vhd_bridge::start`'s OnceLock would still let the UI
+    // process win the single-instance race, so the gate has to live
+    // here, outside the worker.
+    //
+    // Both calls are idempotent — the recursive `start_server(true,
+    // false)` re-entrancy in this fn (the `--server` retry path
+    // below) reaches them on every iteration; `OnceLock` guards
+    // inside both `start` and `log_sink::install` keep this
+    // single-spawn / single-install.
     #[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
-    {
+    if is_server {
         crate::vhd_bridge::install_log_sink();
         crate::vhd_bridge::start(&tokio::runtime::Handle::current());
     }
