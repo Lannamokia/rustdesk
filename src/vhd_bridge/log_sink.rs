@@ -279,9 +279,18 @@ pub(super) fn current_log_drop() -> u64 {
 }
 
 /// Background task that drains the ring buffer and forwards each
-/// event to the bridge worker as a `Log_Frame`. Currently a stub
-/// that drains the queue without writing to the pipe — task 7.2
-/// will add the `BridgeWorker` mpsc channel that this task feeds.
+/// event to the bridge worker as a `Log_Frame`. The drain is
+/// `Notify`-driven so producers never block: every successful
+/// `enqueue` calls `notify.notify_one()` to wake this task, which
+/// then pops every available event and ships it to the worker via
+/// [`worker::publish_log_event`]. The worker's session loop owns the
+/// actual pipe write (Requirement 18.4: pipe I/O lives off the
+/// caller's thread).
+///
+/// `worker::publish_log_event` is non-blocking: a full downstream
+/// queue increments `log_drop_count` in lieu of back-pressuring this
+/// task. That keeps the producer side free of latency dependencies on
+/// the named pipe — exactly the property Requirement 18.6 calls for.
 async fn log_writer_task() {
     // Take an `&'static Notify` reference so the await below is
     // tied to the process-singleton primitive rather than a local.
@@ -295,12 +304,8 @@ async fn log_writer_task() {
         // Drain everything we can without giving up the runtime
         // tick; the lock is acquired and released for each pop so
         // producers are never blocked behind the writer.
-        while let Some(_event) = try_pop_one() {
-            // TODO(task 7.2 / 10.x): forward `_event` to the bridge
-            // worker via its mpsc input. For task 10.1 we only need
-            // the queue + drop-oldest semantics; the writer simply
-            // drains so the bounded ring does not fill during early
-            // development builds.
+        while let Some(event) = try_pop_one() {
+            worker::publish_log_event(event);
         }
     }
 }

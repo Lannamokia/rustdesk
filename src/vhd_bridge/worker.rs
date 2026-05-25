@@ -99,6 +99,7 @@
 #![allow(dead_code)] // remaining hooks wired up by tasks 8.x, 10.1, 11.2.
 
 use std::collections::{BTreeMap, HashSet};
+use std::io;
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -111,17 +112,20 @@ use hbb_common::tokio::runtime::Handle;
 use hbb_common::tokio::sync::{mpsc, Notify};
 use hbb_common::tokio::{self, time as tokio_time};
 
+use super::log_sink::LogEvent;
 use super::observability::{
-    self, REASON_DENY, REASON_INVALID_PROOF, REASON_PEER_NOT_VHDMOUNT, REASON_PIPE_CLOSED,
-    REASON_PIPE_TIMEOUT, REASON_RATE_LIMITED, REASON_SECRET_OUTDATED,
+    self, REASON_DENY, REASON_INVALID_MAC, REASON_INVALID_PROOF, REASON_PEER_NOT_VHDMOUNT,
+    REASON_PIPE_CLOSED, REASON_PIPE_TIMEOUT, REASON_RATE_LIMITED, REASON_SECRET_OUTDATED,
 };
 use super::peer_approval::{ApprovalRequest, ApprovalResponse};
 use super::pipe::{self, ConnectError};
 use super::protocol::{
-    self, HandshakeErrorReason, HandshakeFrame, HandshakeResponse, PasswordKind,
-    PeerApprovalRequest, PeerApprovalResponse, CLIENT_KIND_RUSTDESK, PROTOCOL_HANDSHAKE,
-    PROTOCOL_PEER_APPROVAL,
+    self, HandshakeErrorReason, HandshakeFrame, HandshakeResponse, LogFrame, PasswordKind,
+    PeerApprovalRequest, PeerApprovalResponse, ReportAck, ReportAckRejectReason, ReportFrame,
+    ReportReason, RevocationFrame, RevocationReason, CLIENT_KIND_RUSTDESK, PROTOCOL_HANDSHAKE,
+    PROTOCOL_LOG, PROTOCOL_PEER_APPROVAL, PROTOCOL_REPORT,
 };
+use super::triggers::{self, TriggerEvent};
 use super::{ApprovalOutcome, BridgeState, BridgeStateSnapshot};
 
 // ---------------------------------------------------------------------------
@@ -148,6 +152,75 @@ pub(super) fn current_snapshot() -> BridgeStateSnapshot {
 #[inline]
 pub(super) fn log_drop_count_inc(by: u64) {
     observability::log_drop_count_inc(by);
+}
+
+// ---------------------------------------------------------------------------
+// log_sink → worker bridge (task 10.x / Requirements 18.1, 18.2, 18.4)
+//
+// The bridge log sink has no `NamedPipeClient` of its own, so the
+// drain task in `log_sink::log_writer_task` cannot serialise frames
+// directly. Instead it publishes already-redacted / truncated
+// `LogEvent`s through this channel; the worker's `tokio::select!` arm
+// in [`hold_session_until_break`] consumes them and writes
+// `Log_Frame`s to the pipe (fire-and-forget per design.md §"Log Sink"
+// / Requirement 18.5).
+//
+// `OnceLock<Sender>` mirrors the trigger plumbing in `triggers.rs`:
+// the worker creates the channel on startup, hands the receiver to
+// the session loop, and stashes the sender here for `log_sink` to
+// reach. A second worker spin-up returns `None` from `init_log_rx()`
+// — the first init wins, exactly like `peer_approval::take_request_
+// receiver()`.
+// ---------------------------------------------------------------------------
+
+/// Capacity of the log → worker queue. The log_sink's own ring
+/// buffer (4096 events / 4 MiB) is the primary back-pressure point;
+/// 64 here is a small downstream cushion that lets the writer task
+/// overlap one frame's pipe I/O with another producer push without
+/// gratuitously expanding the worker's footprint. A `Full` `try_send`
+/// drops the event and increments the public `log_drop_count` so
+/// observability stays truthful.
+const LOG_FRAME_CHANNEL_CAPACITY: usize = 64;
+
+/// Sender half of the log → worker channel, populated by [`init_log_rx`]
+/// during worker startup. `log_sink::log_writer_task` reaches it via
+/// [`publish_log_event`].
+static LOG_FRAME_TX: OnceLock<mpsc::Sender<LogEvent>> = OnceLock::new();
+
+/// Build the log → worker channel and publish the sender. Returns the
+/// receiver half so [`run`] can plug it into the session `select!`.
+/// Idempotent: a duplicate worker spin-up returns `None`, matching the
+/// `take_request_receiver()` shape in `peer_approval`.
+fn init_log_rx() -> Option<mpsc::Receiver<LogEvent>> {
+    let (tx, rx) = mpsc::channel::<LogEvent>(LOG_FRAME_CHANNEL_CAPACITY);
+    if LOG_FRAME_TX.set(tx).is_err() {
+        return None;
+    }
+    Some(rx)
+}
+
+/// Hand the worker one already-redacted `LogEvent`. Called by
+/// `log_sink::log_writer_task` for every event it pops off the
+/// bounded ring buffer. Non-blocking: a `Full` queue drops the event
+/// and bumps `log_drop_count` (Requirements 18.5 / 18.10); a closed
+/// queue means the worker has exited (process tear-down) and we
+/// silently discard.
+pub(super) fn publish_log_event(ev: LogEvent) {
+    let Some(tx) = LOG_FRAME_TX.get() else {
+        // Worker not yet started — drop and bump the counter so the
+        // public `log_drop_count` snapshot stays truthful.
+        observability::log_drop_count_inc(1);
+        return;
+    };
+    match tx.try_send(ev) {
+        Ok(()) => {}
+        Err(mpsc::error::TrySendError::Full(_)) => {
+            observability::log_drop_count_inc(1);
+        }
+        Err(mpsc::error::TrySendError::Closed(_)) => {
+            // Worker exited; nothing to publish to.
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -249,12 +322,21 @@ pub(super) fn start(rt: &Handle) {
 ///     it with the full jitter / `rate_limited` / failure-count
 ///     escalation logic.
 async fn run() {
-    // Construct the trigger queue + heartbeat ticker once. We
-    // intentionally keep `_trigger_rx` alive for the worker's
-    // lifetime so the Coalescer's `mpsc` does not saturate while the
-    // session loop placeholder runs (tasks 8.3 will replace this `_`
-    // with real consumption inside `hold_session_until_break`).
-    let _trigger_rx = super::triggers::init();
+    // Construct the trigger queue + heartbeat ticker once. The queue
+    // is owned for the worker's lifetime; we hand the receiver to
+    // [`hold_session_until_break`] every iteration so a new session
+    // can drain coalesced bursts without losing in-flight events
+    // (the [`mpsc::Receiver`] is moved out and back via `&mut`,
+    // never replaced, so heartbeat / hook fires that arrive between
+    // sessions still queue up).
+    //
+    // A duplicate worker spin-up (only possible from a misordered
+    // `vhd_bridge::start` call — the `OnceLock` in `mod.rs` guards
+    // against that in production) sees `None` here; without a trigger
+    // receiver the session loop's trigger arm parks on `pending` and
+    // we run as an approval-only worker. The `peer_approval` arm has
+    // the same fall-through shape, keeping behaviour symmetric.
+    let mut trigger_rx_opt = super::triggers::init();
 
     // Task 11.2: take ownership of the gate → worker approval channel.
     // `gate(...)` (`peer_approval::gate`) `try_send`s `ApprovalRequest`
@@ -263,6 +345,14 @@ async fn run() {
     // worker bring-up — the first init wins, the second worker has no
     // way to drive approvals and must run without that arm.
     let mut approval_rx = super::peer_approval::take_request_receiver();
+
+    // Task 10.x: own the log → worker channel. `log_sink::log_writer_
+    // task` publishes already-redacted `LogEvent`s through
+    // [`publish_log_event`]; we drain them here and write `Log_Frame`s
+    // to the pipe inside the session loop. As with the approval
+    // receiver, a duplicate worker init returns `None` and the
+    // session's log arm parks on `pending`.
+    let mut log_rx = init_log_rx();
 
     // Task 7.3: track consecutive failures. Reset on every
     // `Connected`; bump on every `Denied` / `TransientPipeIo` outcome.
@@ -345,7 +435,9 @@ async fn run() {
                 hold_session_until_break(
                     client,
                     &mut last_reported,
+                    &mut trigger_rx_opt,
                     &mut approval_rx,
+                    &mut log_rx,
                     secret_version,
                     timeout_ms,
                     &mut nonce_window,
@@ -615,14 +707,28 @@ async fn connect_and_handshake(
 /// Hold the post-handshake session open until the pipe surfaces an
 /// I/O error / EOF, or `vhd_bridge::reset()` pulses the reset signal.
 ///
-/// Tasks 8.3 / 10.1 will add the trigger / log arms; task 11.x will
-/// teach the read arm to dispatch on `protocol` / `result` for
-/// `ReportAck` / `Revocation_Frame`. Task 11.2 (this commit) adds the
-/// `Peer_Approval_Request` outbound arm: when `gate(...)` posts an
-/// [`ApprovalRequest`] into the gate → worker channel, we
-/// `tokio::select!` the receiver, write a `PeerApprovalRequest` frame
-/// to the pipe, read back a `PeerApprovalResponse` (with timeout),
-/// and forward the result via the request's `oneshot::Sender`.
+/// Today's `tokio::select!` arms (after task 8.x / 10.x / 11.x /
+/// 11.2 wiring):
+///
+///   * **reset** — `vhd_bridge::reset()` pulses; tear down the
+///     session unconditionally.
+///   * **trigger** — coalesced `TriggerEvent` from [`triggers::
+///     coalesce_window`]; the worker reads live credentials, runs
+///     dedup, and writes a `Report_Frame`. The accepted snapshot is
+///     not committed to `last_reported` until the matching
+///     `ReportAck::Accepted` lands on the read arm — so a server
+///     that NACKs a frame does not leave the cache primed (Task 8.2
+///     contract / Requirement 6.8).
+///   * **approval** — `peer_approval::gate(...)` request; round-trip
+///     a `Peer_Approval_Request` and reply on its oneshot.
+///   * **log** — `LogEvent` published by `log_sink::log_writer_task`;
+///     write a `Log_Frame` fire-and-forget.
+///   * **read_frame** — server-pushed inbound traffic. The dispatcher
+///     tries `ReportAck` first (since the worker actively writes
+///     reports), then `RevocationFrame`, then `PeerApprovalResponse`
+///     for completeness; unknown JSON shapes are logged at debug and
+///     dropped without disturbing the session (Requirement 11.6
+///     keeps unknown server traffic non-fatal).
 ///
 /// Error handling contract (Requirement 19.5 / 19.8):
 ///   * Any failure on the approval round-trip — write error, read
@@ -630,22 +736,23 @@ async fn connect_and_handshake(
 ///     `ApprovalOutcome::BridgeUnavailable` so the inbound-connection
 ///     decision table at task 11.4 keeps treating the bridge as
 ///     fail-open.
-///   * The approval path SHALL NOT call `transition_to_failed` even
-///     for catastrophic write errors. The session loop will surface
-///     the same I/O error on its next read and naturally walk back
-///     to `Initializing` via the read arm below.
+///   * The approval / report / log paths SHALL NOT call
+///     `transition_to_failed` even for catastrophic write errors.
+///     The session loop will surface the same I/O error on its next
+///     read and naturally walk back to `Initializing` via the read
+///     arm below.
 ///
-/// Today the read arm is still a thin "drop the bytes" placeholder
-/// (task 11.x will dispatch on `protocol` / `result`); MVP request
-/// multiplexing is therefore single-in-flight: while one approval
+/// MVP request multiplexing is single-in-flight: while one approval
 /// round-trip runs, no other `select!` arm consumes from the pipe.
 /// Real multiplexing — interleaving `Report_Frame` writes,
 /// `ReportAck` / `Revocation_Frame` reads, and `Peer_Approval_*`
 /// round-trips with a request-id — lands in tasks 8.x / 11.x.
 async fn hold_session_until_break(
     mut client: NamedPipeClient,
-    _last_reported: &mut Option<LastReportedSnapshot>,
+    last_reported: &mut Option<LastReportedSnapshot>,
+    trigger_rx: &mut Option<mpsc::Receiver<TriggerEvent>>,
     approval_rx: &mut Option<mpsc::Receiver<ApprovalRequest>>,
+    log_rx: &mut Option<mpsc::Receiver<LogEvent>>,
     secret_version: u32,
     timeout_ms: u32,
     nonce_window: &mut NonceWindow,
@@ -653,15 +760,27 @@ async fn hold_session_until_break(
     let reset = reset_notify();
     let mut scratch = Vec::new();
 
+    /// "Pending" snapshot held while a `Report_Frame` is in flight.
+    /// On `ReportAck::Accepted` we commit it into `last_reported`; on
+    /// any other outcome (rejected ack, pipe drop, parse failure) we
+    /// drop it so the next non-heartbeat trigger re-sends. This is
+    /// the post-task-8.x form of the "writes first, accept later"
+    /// contract from design.md §"上报去重".
+    let mut pending_ack_snap: Option<LastReportedSnapshot> = None;
+
     /// Outcome of one `select!` iteration. Decoded outside the
     /// macro so the per-arm borrows of `client` / `scratch` /
-    /// `approval_rx` don't overlap with the post-select handler
-    /// that needs them again.
+    /// `approval_rx` / `trigger_rx` / `log_rx` don't overlap with the
+    /// post-select handler that needs them again.
     enum SessionEvent {
         Reset,
+        TriggerFired(TriggerEvent),
+        TriggerChannelClosed,
         ApprovalRequest(ApprovalRequest),
         ApprovalChannelClosed,
-        FrameRead,
+        LogEvent(LogEvent),
+        LogChannelClosed,
+        FrameRead(Vec<u8>),
         ReadError,
     }
 
@@ -672,6 +791,18 @@ async fn hold_session_until_break(
             // loop turn requires a new instance.
             let notified = reset.notified();
             tokio::pin!(notified);
+
+            // The trigger arm fires once `coalesce_window` resolves
+            // its 1-second burst-collapse. When the receiver is
+            // absent (duplicate worker init) we park forever, the
+            // same shape used by the approval / log arms below.
+            let trigger_recv = async {
+                match trigger_rx.as_mut() {
+                    Some(rx) => triggers::coalesce_window(rx, triggers::COALESCE_WINDOW).await,
+                    None => std::future::pending::<Option<TriggerEvent>>().await,
+                }
+            };
+            tokio::pin!(trigger_recv);
 
             // The approval arm is only enabled when the worker won
             // the `take_request_receiver()` race. The `pending` no-op
@@ -685,17 +816,34 @@ async fn hold_session_until_break(
             };
             tokio::pin!(approval_recv);
 
+            // Same `pending` shape for the log arm.
+            let log_recv = async {
+                match log_rx.as_mut() {
+                    Some(rx) => rx.recv().await,
+                    None => std::future::pending::<Option<LogEvent>>().await,
+                }
+            };
+            tokio::pin!(log_recv);
+
             tokio::select! {
                 biased;
                 // Reset wins over the others so a `vhd_bridge::reset()`
                 // issued mid-read is honoured immediately.
                 _ = &mut notified => SessionEvent::Reset,
+                trig = &mut trigger_recv => match trig {
+                    Some(ev) => SessionEvent::TriggerFired(ev),
+                    None => SessionEvent::TriggerChannelClosed,
+                },
                 approval_req = &mut approval_recv => match approval_req {
                     Some(req) => SessionEvent::ApprovalRequest(req),
                     None => SessionEvent::ApprovalChannelClosed,
                 },
+                log_ev = &mut log_recv => match log_ev {
+                    Some(ev) => SessionEvent::LogEvent(ev),
+                    None => SessionEvent::LogChannelClosed,
+                },
                 res = super::frame::read_frame(&mut client, &mut scratch) => match res {
-                    Ok(_) => SessionEvent::FrameRead,
+                    Ok(slice) => SessionEvent::FrameRead(slice.to_vec()),
                     Err(e) => {
                         log::debug!(
                             "vhd_bridge: session read terminated: {} ({})",
@@ -713,6 +861,14 @@ async fn hold_session_until_break(
                 log::debug!("vhd_bridge: session interrupted by reset signal");
                 return;
             }
+            SessionEvent::TriggerChannelClosed => {
+                // `triggers::init()` sender is held in a `OnceLock`,
+                // so the receiver only closes when the worker is
+                // exiting (process tear-down). Walk out of the
+                // session and let the outer loop reconnect.
+                log::debug!("vhd_bridge: trigger channel closed; tearing down session");
+                return;
+            }
             SessionEvent::ApprovalChannelClosed => {
                 // Only possible during process tear-down because
                 // `APPROVAL_TX` lives in a `OnceLock`. Bring down the
@@ -722,12 +878,58 @@ async fn hold_session_until_break(
                 );
                 return;
             }
+            SessionEvent::LogChannelClosed => {
+                // `LOG_FRAME_TX` is `OnceLock`-held, same shape as
+                // the other channels above. A close is a tear-down
+                // signal.
+                log::debug!("vhd_bridge: log channel closed; tearing down session");
+                return;
+            }
             SessionEvent::ReadError => return,
-            SessionEvent::FrameRead => {
-                // Task 11.x will dispatch on `protocol` / `result`
-                // here. For 7.2 / 11.2 the session correctness only
-                // depends on us staying connected, so we drop the
-                // frame.
+            SessionEvent::TriggerFired(ev) => {
+                // Snapshot any prior pending ack: the worker only
+                // keeps **one** pending Report_Frame in flight at a
+                // time (single-in-flight MVP, design.md §"BridgeWorker
+                // 控制流"). If a previous trigger's ack hasn't landed
+                // yet we drop its pending snapshot; the new trigger's
+                // wire frame will land first and its ack will
+                // (re)prime the cache.
+                pending_ack_snap = handle_trigger_event(
+                    &mut client,
+                    ev,
+                    last_reported.as_ref(),
+                    secret_version,
+                    nonce_window,
+                )
+                .await;
+            }
+            SessionEvent::LogEvent(log_ev) => {
+                if let Err(e) =
+                    write_log_frame(&mut client, &log_ev, secret_version).await
+                {
+                    log::debug!(
+                        "vhd_bridge: log frame write failed: {} ({})",
+                        e.kind(),
+                        e
+                    );
+                    // A pipe-class write failure will surface again on
+                    // the next read arm — let the read-error path
+                    // drive the `Connected → Initializing` transition
+                    // rather than duplicating it here.
+                }
+            }
+            SessionEvent::FrameRead(payload) => {
+                if let SessionDisposition::TearDown = handle_inbound_frame(
+                    &payload,
+                    &mut pending_ack_snap,
+                    last_reported,
+                ) {
+                    // `Revocation_Frame` / fatal ReportAck reasons
+                    // closed the session: walk back to the outer loop
+                    // so the next iteration picks up the
+                    // (already-published) state transition.
+                    return;
+                }
             }
             SessionEvent::ApprovalRequest(req) => {
                 // Walk the round-trip. Any error path inside the
@@ -749,6 +951,432 @@ async fn hold_session_until_break(
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Report_Frame writer + dispatcher (task 8.x / Requirements 6.x / 7.x)
+// ---------------------------------------------------------------------------
+
+/// Outcome of [`handle_inbound_frame`]: most read-arm events keep the
+/// session running, but a `Revocation_Frame` or a permanent
+/// `ReportAck::Rejected` reason must tear down the pipe so the outer
+/// loop can park on `Failed` (or transition to `Denied`) per design.md
+/// §"状态机".
+enum SessionDisposition {
+    Continue,
+    TearDown,
+}
+
+/// Build and write a `Report_Frame` for the freshly coalesced
+/// `TriggerEvent`. Returns the snapshot that should be cached as
+/// `pending_ack_snap` so a subsequent `ReportAck::Accepted` can
+/// commit it into `last_reported`. `None` means either dedup skipped
+/// the trigger (no frame on the wire) or the write failed (already
+/// logged, the read arm will surface the same I/O error).
+async fn handle_trigger_event(
+    client: &mut NamedPipeClient,
+    ev: TriggerEvent,
+    last_reported: Option<&LastReportedSnapshot>,
+    secret_version: u32,
+    nonce_window: &mut NonceWindow,
+) -> Option<LastReportedSnapshot> {
+    let reason_str = ev.reason_str();
+    let is_heartbeat = ev.is_heartbeat();
+    let reason = report_reason_for(ev);
+
+    // (a) Read live credentials. The hbb_common APIs each take an
+    // RwLock for the read; we copy each value out under a fresh
+    // borrow so no lock is held across the upcoming await.
+    let creds = collect_credentials();
+    let (password_kind, password) = classify_password(&creds);
+
+    // (b) Build the candidate snapshot for dedup.
+    let next_snap = LastReportedSnapshot::from_password(
+        creds.rust_desk_id.clone(),
+        password_kind,
+        &password,
+    );
+
+    let state = current_snapshot().state;
+    if should_skip_report(last_reported, &next_snap, is_heartbeat, state) {
+        log::debug!(
+            "vhd_bridge: dedup skip ({}, state={:?})",
+            reason_str,
+            state
+        );
+        return None;
+    }
+
+    // (c) Build wire frame: nonce + MAC + JSON.
+    let reported_at = now_unix_ms();
+    let nonce = nonce_window.generate(reported_at);
+    let frame = build_report_frame(
+        &creds.rust_desk_id,
+        password_kind,
+        password,
+        reason,
+        secret_version,
+        nonce,
+        reported_at,
+    );
+
+    let payload = match serde_json::to_vec(&frame) {
+        Ok(b) => b,
+        Err(e) => {
+            // Should be unreachable — the schema is closed strings +
+            // primitives. Treat as a logged drop and don't prime the
+            // pending-ack cache so the next trigger retries.
+            log::warn!("vhd_bridge: report serialize failed ({}): {e}", reason_str);
+            return None;
+        }
+    };
+    if let Err(e) = super::frame::write_frame(client, &payload).await {
+        log::warn!(
+            "vhd_bridge: report write failed ({}): {} ({})",
+            reason_str,
+            e.kind(),
+            e
+        );
+        return None;
+    }
+
+    Some(next_snap)
+}
+
+/// Snapshot of the credential triplet used to build a `Report_Frame`.
+/// Plaintext is held only for the lifetime of one frame build; the
+/// `Drop` glue here is intentionally trivial — `Zeroizing` lives at
+/// the HMAC input layer (`super::hmac`) where the cryptographic
+/// boundary is.
+struct LiveCredentials {
+    rust_desk_id: String,
+    temporary_password: String,
+    temporary_enabled: bool,
+    is_preset: bool,
+    preset_password: String,
+    permanent_enabled: bool,
+    has_permanent_password: bool,
+}
+
+/// Snapshot all credential state we need to build a `Report_Frame`
+/// without holding any of the underlying RwLocks across an `.await`.
+/// Each helper here reads through `hbb_common` so the bridge stays an
+/// observer-only consumer.
+fn collect_credentials() -> LiveCredentials {
+    let rust_desk_id = hbb_common::config::Config::get_id();
+    let temporary_password = hbb_common::password_security::temporary_password();
+    let temporary_enabled = hbb_common::password_security::temporary_enabled();
+    let permanent_enabled = hbb_common::password_security::permanent_enabled();
+    let has_permanent_password = hbb_common::config::Config::has_permanent_password();
+    // `HARD_SETTINGS["password"]` is the build-time-injected preset
+    // (set via `common::load_custom_client`-style packaging). Empty
+    // means "no preset"; non-empty means "preset is currently the
+    // permanent password" iff `matches_permanent_password_plain`
+    // agrees, which is the same predicate `flutter_ffi::is_preset_
+    // password` uses (see src/flutter_ffi.rs::is_preset_password).
+    let preset_password = hbb_common::config::HARD_SETTINGS
+        .read()
+        .unwrap_or_else(|p| p.into_inner())
+        .get("password")
+        .cloned()
+        .unwrap_or_default();
+    let is_preset = !preset_password.is_empty()
+        && hbb_common::config::Config::matches_permanent_password_plain(&preset_password);
+    LiveCredentials {
+        rust_desk_id,
+        temporary_password,
+        temporary_enabled,
+        is_preset,
+        preset_password,
+        permanent_enabled,
+        has_permanent_password,
+    }
+}
+
+/// Pick `(passwordKind, password)` for the report frame from the
+/// snapshotted credentials. Decision tree:
+///
+///   1. `is_preset`         → `(Preset, hard_settings["password"])`
+///   2. `temporary_enabled` ∧ non-empty temp pwd → `(Temporary, pwd)`
+///   3. otherwise           → `(Absent, "")`
+///
+/// `Permanent` is intentionally **not** emitted: RustDesk only stores
+/// the permanent password as a hashed digest on disk (see
+/// `Config::matches_permanent_password_plain`'s use of
+/// `verify_h1`-style hashes), and `VHDMount` needs plaintext to
+/// re-sign and forward (design.md §"协议帧 schema" Report_Frame).
+/// Reporting `Absent` is the correct conservative default — the
+/// server caches whatever value it last accepted, and the operator
+/// can re-enter the permanent password on the controller side at
+/// approval time. This matches the spec's "VHDMount needs plaintext"
+/// constraint without leaking a plaintext we don't have.
+fn classify_password(creds: &LiveCredentials) -> (PasswordKind, String) {
+    if creds.is_preset {
+        return (PasswordKind::Preset, creds.preset_password.clone());
+    }
+    if creds.temporary_enabled && !creds.temporary_password.is_empty() {
+        return (PasswordKind::Temporary, creds.temporary_password.clone());
+    }
+    // `permanent_enabled` / `has_permanent_password` exist for future
+    // policy evolution (e.g. surfacing "a permanent password is set
+    // but unavailable to the bridge" via richer reasoning). Today
+    // they collapse to the `Absent` branch.
+    let _ = creds.permanent_enabled;
+    let _ = creds.has_permanent_password;
+    (PasswordKind::Absent, String::new())
+}
+
+/// Map our internal `TriggerEvent` to the wire `ReportReason`.
+fn report_reason_for(ev: TriggerEvent) -> ReportReason {
+    match ev {
+        TriggerEvent::Startup => ReportReason::Startup,
+        TriggerEvent::IdChange => ReportReason::IdChange,
+        TriggerEvent::PasswordChange => ReportReason::PasswordChange,
+        TriggerEvent::Rotation => ReportReason::Rotation,
+        TriggerEvent::Heartbeat => ReportReason::Heartbeat,
+    }
+}
+
+/// Wire string for `Report_Frame.passwordKind` — also the value fed
+/// into `hmac_report`'s `password_kind` argument so the HMAC input
+/// matches docs/vhd-rustdesk-bridge-protocol.md §6.2 byte-for-byte.
+fn password_kind_wire(k: PasswordKind) -> &'static str {
+    match k {
+        PasswordKind::Temporary => "temporary",
+        PasswordKind::Permanent => "permanent",
+        PasswordKind::Preset => "preset",
+        PasswordKind::Absent => "absent",
+    }
+}
+
+/// Pure builder for a `ReportFrame`: takes already-classified inputs
+/// and produces the wire struct with its base64-encoded MAC. Pure so
+/// the production write path and the unit tests share one
+/// implementation; the only side effect is the HMAC computation
+/// inside `hmac::hmac_report` (which itself has no state beyond the
+/// embedded shared-secret constant).
+fn build_report_frame(
+    rust_desk_id: &str,
+    password_kind: PasswordKind,
+    password: String,
+    reason: ReportReason,
+    secret_version: u32,
+    nonce: String,
+    reported_at: u64,
+) -> ReportFrame {
+    let password_kind_str = password_kind_wire(password_kind);
+    let reason_str = report_reason_wire(reason);
+    let password_sha256 = sha256_hex(password.as_bytes());
+    let mac_bytes = super::hmac::hmac_report(
+        secret_version,
+        rust_desk_id,
+        password_kind_str,
+        &password_sha256,
+        reason_str,
+        reported_at,
+        &nonce,
+    );
+    ReportFrame {
+        protocol: PROTOCOL_REPORT.to_owned(),
+        secret_version,
+        rust_desk_id: rust_desk_id.to_owned(),
+        password_kind,
+        password,
+        reason,
+        reported_at,
+        nonce,
+        mac: BASE64_STANDARD.encode(mac_bytes),
+    }
+}
+
+/// Wire string for `Report_Frame.reason` — needed both by the JSON
+/// serde tag (which lives on `ReportReason` itself) and by the HMAC
+/// input layer. Kept symmetric with `password_kind_wire` so a
+/// reader auditing the cross-product of types and HMAC inputs can
+/// see both translations side by side.
+fn report_reason_wire(r: ReportReason) -> &'static str {
+    match r {
+        ReportReason::Startup => "startup",
+        ReportReason::IdChange => "id_change",
+        ReportReason::PasswordChange => "password_change",
+        ReportReason::Rotation => "rotation",
+        ReportReason::Heartbeat => "heartbeat",
+    }
+}
+
+/// Build, serialise and write a `Log_Frame` (Requirement 18.x /
+/// design.md §"Log Sink"). Fire-and-forget: a successful write
+/// returns `Ok(())` and the worker moves on without waiting for an
+/// ack. `LogFrame` has no server-side reply shape per protocol §7.
+async fn write_log_frame(
+    client: &mut NamedPipeClient,
+    ev: &LogEvent,
+    secret_version: u32,
+) -> io::Result<()> {
+    let level_wire = log_level_wire(ev.level);
+    let mac_bytes = super::hmac::hmac_log(
+        secret_version,
+        level_wire,
+        &ev.target,
+        &sha256_hex(ev.message.as_bytes()),
+        ev.timestamp_ms,
+    );
+    let frame = LogFrame {
+        protocol: PROTOCOL_LOG.to_owned(),
+        secret_version,
+        level: protocol_log_level(ev.level),
+        target: ev.target.clone(),
+        message: ev.message.clone(),
+        timestamp_ms: ev.timestamp_ms,
+        mac: BASE64_STANDARD.encode(mac_bytes),
+    };
+    let payload = serde_json::to_vec(&frame).map_err(|e| {
+        io::Error::new(io::ErrorKind::InvalidData, format!("log serialize: {e}"))
+    })?;
+    super::frame::write_frame(client, &payload).await
+}
+
+/// Wire string for `Log_Frame.level` — also the value fed into
+/// `hmac_log`'s `level` argument.
+fn log_level_wire(level: log::Level) -> &'static str {
+    match level {
+        log::Level::Error => "error",
+        log::Level::Warn => "warn",
+        log::Level::Info => "info",
+        log::Level::Debug => "debug",
+        log::Level::Trace => "trace",
+    }
+}
+
+/// Convert `log::Level` to the protocol's `LogLevel` enum so serde's
+/// `rename_all = "snake_case"` produces the wire string defined in
+/// `password_kind_wire` / docs §7.1.
+fn protocol_log_level(level: log::Level) -> protocol::LogLevel {
+    match level {
+        log::Level::Error => protocol::LogLevel::Error,
+        log::Level::Warn => protocol::LogLevel::Warn,
+        log::Level::Info => protocol::LogLevel::Info,
+        log::Level::Debug => protocol::LogLevel::Debug,
+        log::Level::Trace => protocol::LogLevel::Trace,
+    }
+}
+
+/// Dispatch one inbound frame off the pipe. Reports / revocations
+/// take precedence over generic peer-approval responses; unknown JSON
+/// shapes are ignored so a future protocol field cannot wedge the
+/// session (design.md §"BridgeWorker 控制流" forward-compat hint).
+fn handle_inbound_frame(
+    payload: &[u8],
+    pending_ack_snap: &mut Option<LastReportedSnapshot>,
+    last_reported: &mut Option<LastReportedSnapshot>,
+) -> SessionDisposition {
+    if let Ok(ack) = serde_json::from_slice::<ReportAck>(payload) {
+        return handle_report_ack(ack, pending_ack_snap, last_reported);
+    }
+    if let Ok(rev) = serde_json::from_slice::<RevocationFrame>(payload) {
+        return handle_revocation_frame(rev);
+    }
+    // PeerApproval responses are normally consumed inline by
+    // [`handle_approval_request`] (which reads its own response from
+    // the pipe with a timeout). A response landing on the
+    // outer-session read arm means the gate caller already gave up —
+    // we silently drop it.
+    if serde_json::from_slice::<PeerApprovalResponse>(payload).is_ok() {
+        log::debug!(
+            "vhd_bridge: orphan PeerApprovalResponse on session read arm; dropping"
+        );
+        return SessionDisposition::Continue;
+    }
+    log::debug!(
+        "vhd_bridge: ignoring unrecognised inbound frame ({} bytes)",
+        payload.len()
+    );
+    SessionDisposition::Continue
+}
+
+/// Process a `ReportAck`. `Accepted` commits the pending snapshot
+/// into `last_reported` and (the first time) promotes the bridge to
+/// `Authorized` (Requirement 6.5). `Rejected` reasons funnel through
+/// the observability writers per design §"状态机":
+///
+/// | reason            | new state               | sticky? |
+/// | ----------------- | ----------------------- | ------- |
+/// | deny              | Denied                  | no      |
+/// | rate_limited      | Denied                  | no      |
+/// | secret_outdated   | Failed (sink)           | yes     |
+/// | invalid_mac       | Denied                  | no      |
+fn handle_report_ack(
+    ack: ReportAck,
+    pending_ack_snap: &mut Option<LastReportedSnapshot>,
+    last_reported: &mut Option<LastReportedSnapshot>,
+) -> SessionDisposition {
+    match ack {
+        ReportAck::Accepted => {
+            // Commit the pending snapshot into the dedup cache. A
+            // missing pending entry is fine — heartbeats may arrive
+            // during a session even when we did not just write a
+            // snapshot-changing frame, and an ack-without-frame
+            // (server replaying state) is harmless.
+            if let Some(snap) = pending_ack_snap.take() {
+                *last_reported = Some(snap);
+            }
+            // `record_accepted` is idempotent: post-`Authorized`
+            // accepts collapse into a no-op so the watch channel
+            // stays calm on long-lived steady-state sessions.
+            observability::record_accepted();
+            SessionDisposition::Continue
+        }
+        ReportAck::Rejected { reason } => {
+            // Drop the pending snapshot — a rejected frame must not
+            // poison the cache. The next non-heartbeat trigger will
+            // try again.
+            *pending_ack_snap = None;
+            match reason {
+                ReportAckRejectReason::Deny => {
+                    observability::transition_to(BridgeState::Denied, Some(REASON_DENY));
+                    SessionDisposition::TearDown
+                }
+                ReportAckRejectReason::RateLimited => {
+                    observability::transition_to(
+                        BridgeState::Denied,
+                        Some(REASON_RATE_LIMITED),
+                    );
+                    SessionDisposition::TearDown
+                }
+                ReportAckRejectReason::SecretOutdated => {
+                    observability::transition_to_failed(REASON_SECRET_OUTDATED);
+                    SessionDisposition::TearDown
+                }
+                ReportAckRejectReason::InvalidMac => {
+                    observability::transition_to(
+                        BridgeState::Denied,
+                        Some(REASON_INVALID_MAC),
+                    );
+                    SessionDisposition::TearDown
+                }
+            }
+        }
+    }
+}
+
+/// Process a server-pushed `Revocation_Frame`. Task 11.x is the
+/// authoritative implementation site (it owns the MAC verification
+/// + `secret_version` cross-check and the full state-machine fan-out).
+/// Today we log the receipt and tear down the session so the outer
+/// loop reconnects; the read arm's transient-error path will re-emit
+/// `Initializing` if observability hasn't already moved.
+fn handle_revocation_frame(rev: RevocationFrame) -> SessionDisposition {
+    let reason = match rev.reason {
+        RevocationReason::Denied => "denied",
+        RevocationReason::SecretOutdated => "secret_outdated",
+    };
+    log::info!(
+        "vhd_bridge: received revocation frame (reason={}, secret_version={}, issued_at={})",
+        reason,
+        rev.secret_version,
+        rev.issued_at,
+    );
+    SessionDisposition::TearDown
 }
 
 // ---------------------------------------------------------------------------
@@ -1962,6 +2590,415 @@ mod tests {
             // The dedup-formula count: `emitted` MUST equal the
             // independent oracle.
             prop_assert_eq!(emitted, oracle_emitted);
+        }
+    }
+
+    // =====================================================================
+    // Task 8.x — Report frame builder + ack handling unit tests
+    //
+    // These exercise the new `Report_Frame` write path that 8.x added:
+    //   * `build_report_frame` produces the exact JSON the spec
+    //     mandates and a base64-encoded MAC that recomputes from
+    //     `hmac_report` byte-for-byte (Property 20-flavoured spot check).
+    //   * The full trigger → ack → dedup loop, simulated against the
+    //     observability writers, gates non-heartbeat re-emission
+    //     correctly and re-emits heartbeats unconditionally
+    //     (Requirement 6.8 / 7.6).
+    //   * `classify_password` follows the documented decision tree:
+    //     preset > temporary > absent. The permanent branch never
+    //     emits plaintext — that is the design's "VHDMount needs
+    //     plaintext" constraint applied to a domain where plaintext
+    //     does not exist on disk.
+    // =====================================================================
+
+    /// Re-encode a frame through `build_report_frame` and pull out a
+    /// raw byte view of the MAC for cross-checking against
+    /// `hmac::hmac_report` directly. The wire `mac` field is base64
+    /// of those bytes per protocol §6.2.
+    fn report_frame_mac_bytes(f: &protocol::ReportFrame) -> [u8; 32] {
+        let mut out = [0u8; 32];
+        let decoded = BASE64_STANDARD
+            .decode(&f.mac)
+            .expect("ReportFrame.mac must be valid base64");
+        assert_eq!(decoded.len(), 32, "HMAC-SHA256 digest is 32 bytes");
+        out.copy_from_slice(&decoded);
+        out
+    }
+
+    #[test]
+    fn build_report_frame_pins_protocol_and_mac_to_hmac_report() {
+        // Spot-check a single fully-specified `(rustDeskId,
+        // passwordKind, password, reason, secret_version, nonce,
+        // reported_at)` tuple. The MAC bytes must match a separate
+        // call into `super::hmac::hmac_report`, byte-for-byte. This
+        // pins the wire layout and the cross-product of the frame
+        // builder + HMAC input layer in one assertion.
+        let rust_desk_id = "123456789";
+        let password = "Hunter2!";
+        let nonce = "9a8b7c6d5e4f30210011223344556677".to_owned();
+        let reported_at = 1_730_000_000_000u64;
+        let secret_version = 1u32;
+
+        let frame = build_report_frame(
+            rust_desk_id,
+            PasswordKind::Temporary,
+            password.to_owned(),
+            ReportReason::Startup,
+            secret_version,
+            nonce.clone(),
+            reported_at,
+        );
+
+        // Wire shape sanity.
+        assert_eq!(frame.protocol, PROTOCOL_REPORT);
+        assert_eq!(frame.secret_version, secret_version);
+        assert_eq!(frame.rust_desk_id, rust_desk_id);
+        assert_eq!(frame.password_kind, PasswordKind::Temporary);
+        assert_eq!(frame.password, password);
+        assert_eq!(frame.reason, ReportReason::Startup);
+        assert_eq!(frame.reported_at, reported_at);
+        assert_eq!(frame.nonce, nonce);
+
+        // MAC reproducibility: recompute through the same input
+        // builder and assert byte equality. A regression in either
+        // `password_kind_wire` / `report_reason_wire` /
+        // `sha256_hex(password)` would surface here.
+        let expected_mac = super::super::hmac::hmac_report(
+            secret_version,
+            rust_desk_id,
+            "temporary",
+            &sha256_hex(password.as_bytes()),
+            "startup",
+            reported_at,
+            &nonce,
+        );
+        assert_eq!(report_frame_mac_bytes(&frame), expected_mac);
+    }
+
+    #[test]
+    fn build_report_frame_absent_password_uses_empty_plaintext_and_sha256_of_empty() {
+        // The spec's `Absent` branch emits `password = ""`. The HMAC
+        // input therefore hashes the empty byte string, which has
+        // SHA-256 = e3b0c44…b855 (RFC 6234 zero-byte vector).
+        let frame = build_report_frame(
+            "987654321",
+            PasswordKind::Absent,
+            String::new(),
+            ReportReason::Heartbeat,
+            7,
+            "ffeeddccbbaa99887766554433221100".to_owned(),
+            1_730_000_001_000,
+        );
+        assert_eq!(frame.password, "");
+        assert_eq!(frame.password_kind, PasswordKind::Absent);
+
+        let expected_mac = super::super::hmac::hmac_report(
+            7,
+            "987654321",
+            "absent",
+            // SHA-256("") — the canonical empty-bytes digest.
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "heartbeat",
+            1_730_000_001_000,
+            "ffeeddccbbaa99887766554433221100",
+        );
+        assert_eq!(report_frame_mac_bytes(&frame), expected_mac);
+    }
+
+    #[test]
+    fn classify_password_prefers_preset_then_temporary_then_absent() {
+        // Preset wins outright when the predicate is true.
+        let preset_creds = LiveCredentials {
+            rust_desk_id: "id".into(),
+            temporary_password: "ignored-temp".into(),
+            temporary_enabled: true,
+            is_preset: true,
+            preset_password: "preset!".into(),
+            permanent_enabled: true,
+            has_permanent_password: true,
+        };
+        assert_eq!(
+            classify_password(&preset_creds),
+            (PasswordKind::Preset, "preset!".to_owned())
+        );
+
+        // Temporary wins when not preset and temp is enabled + non-empty.
+        let temp_creds = LiveCredentials {
+            rust_desk_id: "id".into(),
+            temporary_password: "tmp42".into(),
+            temporary_enabled: true,
+            is_preset: false,
+            preset_password: String::new(),
+            permanent_enabled: true,
+            has_permanent_password: true,
+        };
+        assert_eq!(
+            classify_password(&temp_creds),
+            (PasswordKind::Temporary, "tmp42".to_owned())
+        );
+
+        // Otherwise → Absent. Even when permanent is enabled and set
+        // (RustDesk has no plaintext for permanent), the report goes
+        // out as Absent, since `VHDMount` needs plaintext to re-sign
+        // and forward but we have none.
+        let perm_only_creds = LiveCredentials {
+            rust_desk_id: "id".into(),
+            temporary_password: String::new(),
+            temporary_enabled: false,
+            is_preset: false,
+            preset_password: String::new(),
+            permanent_enabled: true,
+            has_permanent_password: true,
+        };
+        assert_eq!(
+            classify_password(&perm_only_creds),
+            (PasswordKind::Absent, String::new())
+        );
+
+        // Empty temp password (temp enabled but value not yet generated)
+        // falls through to Absent.
+        let blank_temp = LiveCredentials {
+            rust_desk_id: "id".into(),
+            temporary_password: String::new(),
+            temporary_enabled: true,
+            is_preset: false,
+            preset_password: String::new(),
+            permanent_enabled: false,
+            has_permanent_password: false,
+        };
+        assert_eq!(
+            classify_password(&blank_temp),
+            (PasswordKind::Absent, String::new())
+        );
+    }
+
+    #[test]
+    fn report_reason_for_round_trips_through_wire_string() {
+        // The protocol's `reason` field is derived from
+        // `TriggerEvent::reason_str()` on the trigger side and from
+        // `report_reason_wire(...)` on the HMAC side. Both must agree
+        // for every variant (otherwise the HMAC input we sign is
+        // different from what `VHDMount` recomputes).
+        for ev in [
+            TriggerEvent::Startup,
+            TriggerEvent::IdChange,
+            TriggerEvent::PasswordChange,
+            TriggerEvent::Rotation,
+            TriggerEvent::Heartbeat,
+        ] {
+            let r = report_reason_for(ev);
+            assert_eq!(report_reason_wire(r), ev.reason_str());
+        }
+    }
+
+    /// Drive [`handle_report_ack`] directly: an `Accepted` commits the
+    /// pending snapshot into `last_reported`, a `Rejected` drops the
+    /// pending snapshot, and observability is updated through the
+    /// real (process-singleton) writers. This pins the dedup commit
+    /// contract from §"上报去重".
+    #[test]
+    fn handle_report_ack_accepted_commits_pending_snapshot_into_last_reported() {
+        let _g = observability_test_lock()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        observability::reset_for_tests();
+        observability::transition_to(BridgeState::Connected, None);
+
+        let mut pending: Option<LastReportedSnapshot> =
+            Some(snap("id1", PasswordKind::Temporary, "pw1"));
+        let mut last: Option<LastReportedSnapshot> = None;
+
+        let dispo = handle_report_ack(ReportAck::Accepted, &mut pending, &mut last);
+        assert!(matches!(dispo, SessionDisposition::Continue));
+        assert!(pending.is_none(), "pending must be drained on accept");
+        assert_eq!(
+            last.as_ref().expect("last_reported committed"),
+            &snap("id1", PasswordKind::Temporary, "pw1"),
+        );
+        // First Accepted promotes Connected → Authorized.
+        assert_eq!(
+            current_snapshot().state,
+            BridgeState::Authorized,
+            "first accepted must promote to Authorized"
+        );
+    }
+
+    #[test]
+    fn handle_report_ack_rejected_drops_pending_and_routes_observability() {
+        // Run the four `Rejected` reasons one at a time so each can
+        // observe its own snapshot transition without sticky state
+        // from a sibling case bleeding over.
+        for (reason, want_state, want_reason) in [
+            (
+                ReportAckRejectReason::Deny,
+                BridgeState::Denied,
+                REASON_DENY,
+            ),
+            (
+                ReportAckRejectReason::RateLimited,
+                BridgeState::Denied,
+                REASON_RATE_LIMITED,
+            ),
+            (
+                ReportAckRejectReason::InvalidMac,
+                BridgeState::Denied,
+                REASON_INVALID_MAC,
+            ),
+            (
+                ReportAckRejectReason::SecretOutdated,
+                BridgeState::Failed,
+                REASON_SECRET_OUTDATED,
+            ),
+        ] {
+            let _g = observability_test_lock()
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+            observability::reset_for_tests();
+            observability::transition_to(BridgeState::Connected, None);
+
+            let mut pending: Option<LastReportedSnapshot> =
+                Some(snap("id1", PasswordKind::Temporary, "pw1"));
+            let mut last: Option<LastReportedSnapshot> = None;
+
+            let dispo = handle_report_ack(
+                ReportAck::Rejected { reason },
+                &mut pending,
+                &mut last,
+            );
+            assert!(
+                matches!(dispo, SessionDisposition::TearDown),
+                "rejected ack must tear down session for reason {:?}",
+                reason
+            );
+            assert!(
+                pending.is_none(),
+                "pending must be cleared on reject ({:?})",
+                reason
+            );
+            assert!(
+                last.is_none(),
+                "last_reported must NOT be primed on reject ({:?})",
+                reason
+            );
+            let s = current_snapshot();
+            assert_eq!(s.state, want_state, "state mismatch for {:?}", reason);
+            assert_eq!(
+                s.last_reason.as_deref(),
+                Some(want_reason),
+                "reason mismatch for {:?}",
+                reason
+            );
+        }
+    }
+
+    /// Trigger-loop-shaped end-to-end check: simulating the
+    /// "trigger → write → ack → dedup" sequence twice with the same
+    /// snapshot, the second non-heartbeat call MUST be deduped, and
+    /// a heartbeat MUST always pass. Drives `should_skip_report`
+    /// + `handle_report_ack` directly so the assertion does not
+    /// depend on a real `NamedPipeClient`.
+    #[test]
+    fn dedup_loop_skips_second_identical_non_heartbeat_after_accept() {
+        let _g = observability_test_lock()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        observability::reset_for_tests();
+        observability::transition_to(BridgeState::Connected, None);
+
+        let next = snap("id1", PasswordKind::Temporary, "pw1");
+
+        // Round 1: empty cache → must send.
+        let mut last: Option<LastReportedSnapshot> = None;
+        let mut pending: Option<LastReportedSnapshot>;
+        let state = current_snapshot().state;
+        assert!(
+            !should_skip_report(last.as_ref(), &next, false, state),
+            "first non-heartbeat trigger must emit"
+        );
+        pending = Some(next.clone());
+        // Server accepts.
+        let _ = handle_report_ack(ReportAck::Accepted, &mut pending, &mut last);
+        assert_eq!(last.as_ref(), Some(&next), "accept must prime cache");
+        assert_eq!(current_snapshot().state, BridgeState::Authorized);
+
+        // Round 2: same snapshot, state == Authorized → MUST skip.
+        let state = current_snapshot().state;
+        assert!(
+            should_skip_report(last.as_ref(), &next, false, state),
+            "second identical non-heartbeat must be deduped"
+        );
+
+        // Heartbeat passes through regardless.
+        assert!(
+            !should_skip_report(last.as_ref(), &next, true, state),
+            "heartbeat must always emit"
+        );
+    }
+
+    #[test]
+    fn handle_inbound_frame_dispatches_report_ack_on_accepted_payload() {
+        let _g = observability_test_lock()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        observability::reset_for_tests();
+        observability::transition_to(BridgeState::Connected, None);
+
+        let mut pending: Option<LastReportedSnapshot> =
+            Some(snap("idX", PasswordKind::Preset, "pwX"));
+        let mut last: Option<LastReportedSnapshot> = None;
+
+        let payload = br#"{"result":"accepted"}"#;
+        let dispo = handle_inbound_frame(payload, &mut pending, &mut last);
+        assert!(matches!(dispo, SessionDisposition::Continue));
+        assert!(last.is_some());
+        assert!(pending.is_none());
+        assert_eq!(current_snapshot().state, BridgeState::Authorized);
+    }
+
+    #[test]
+    fn handle_inbound_frame_unrecognised_json_is_dropped() {
+        let _g = observability_test_lock()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        observability::reset_for_tests();
+        observability::transition_to(BridgeState::Connected, None);
+
+        let mut pending: Option<LastReportedSnapshot> = None;
+        let mut last: Option<LastReportedSnapshot> = None;
+        // Random JSON object — no `result` / `protocol` we recognise.
+        let payload = br#"{"hello":"world"}"#;
+        let dispo = handle_inbound_frame(payload, &mut pending, &mut last);
+        assert!(
+            matches!(dispo, SessionDisposition::Continue),
+            "unrecognised inbound frame must not tear down the session"
+        );
+        // State unchanged.
+        assert_eq!(current_snapshot().state, BridgeState::Connected);
+    }
+
+    // =====================================================================
+    // Task 10.x — Log frame builder unit test
+    // =====================================================================
+
+    #[test]
+    fn log_level_wire_matches_protocol_serde_form() {
+        // The wire form fed into `hmac_log` MUST match what serde
+        // emits for `protocol::LogLevel` (which is itself driven by
+        // `#[serde(rename_all = "snake_case")]`). Cross-checking
+        // both sides ensures the HMAC input and the JSON layer agree.
+        for (l, expected) in [
+            (log::Level::Error, "error"),
+            (log::Level::Warn, "warn"),
+            (log::Level::Info, "info"),
+            (log::Level::Debug, "debug"),
+            (log::Level::Trace, "trace"),
+        ] {
+            assert_eq!(log_level_wire(l), expected);
+            // Round-trip protocol::LogLevel through serde to confirm
+            // its kebab-into-snake match.
+            let pl = protocol_log_level(l);
+            let s = serde_json::to_string(&pl).expect("LogLevel serialisable");
+            assert_eq!(s, format!("\"{}\"", expected));
         }
     }
 }
