@@ -790,6 +790,37 @@ pub fn core_main() -> Option<Vec<String>> {
                 }
             }
             return None;
+        } else if args[0] == "--vhd-bridge-state" {
+            // Diagnostic CLI: print the current `BridgeStateSnapshot` JSON
+            // by querying the running `--server` process over the main
+            // IPC, hitting the `Data::Config((VHD_BRIDGE_STATE, None))`
+            // read path in `ipc.rs::handle`.
+            //
+            // This lives on a dedicated subcommand because `--option`
+            // walks `ipc::get_options()` (the multi-value
+            // `Data::Options(None)` map), and `vhd-bridge-state` is only
+            // surfaced via the single-key `Data::Config` path. Without
+            // this entry point operators cannot see bridge state from
+            // the command line at all.
+            #[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+            {
+                match crate::ipc::get_config(
+                    hbb_common::config::keys::VHD_BRIDGE_STATE,
+                ) {
+                    Ok(Some(json)) => println!("{}", json),
+                    Ok(None) => println!(
+                        "(no value — service may not be running, or the bridge feature is not active)"
+                    ),
+                    Err(e) => eprintln!("ipc error: {}", e),
+                }
+            }
+            #[cfg(not(all(target_os = "windows", feature = "vhd-bridge")))]
+            {
+                println!(
+                    "(this build was not compiled with the `vhd-bridge` feature)"
+                );
+            }
+            return None;
         } else if args[0] == "--cm" {
             // call connection manager to establish connections
             // meanwhile, return true to call flutter window to show control panel

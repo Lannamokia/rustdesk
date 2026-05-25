@@ -62,3 +62,4 @@ flutter/web/
 # / VHD_BRIDGE_SECRET_VERSION via masked secret env vars instead.
 secret.sec
 vhd_bridge_secret.bin
+docs/vhd-rustdesk-bridge-controlled-side-handoff.md
