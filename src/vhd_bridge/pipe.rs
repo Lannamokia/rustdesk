@@ -43,6 +43,7 @@ use std::os::windows::io::AsRawHandle;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use hbb_common::log;
 use hbb_common::tokio::io::AsyncWriteExt;
 use hbb_common::tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient};
 use hbb_common::tokio::time;
@@ -185,23 +186,42 @@ pub(super) async fn open_and_verify(
     // path that just opened a pipe; the only-on-open invariant from
     // Requirement 10.5 is satisfied because no other call site of this
     // function exists.
+    //
+    // Each branch logs the rejection reason at `log::warn!` so
+    // operators chasing "VHDMount sees connect-then-clean-EOF" symptoms
+    // can tell which of the three sub-checks tripped without having to
+    // re-instrument and rebuild.  Production releases historically had
+    // no log at all for the success-rejected path; an unexpected
+    // peer-image basename was indistinguishable from `OpenProcess`
+    // access-denied.
     match peer_server_pid(&client).and_then(peer_image_file_name) {
         Ok(name) if is_expected_peer_image(&name) => Ok(client),
-        Ok(_) => {
+        Ok(name) => {
             // Image mismatch is the §10.5 permanent-error case. Spec
             // wording is "立即 shutdown() 并返回 ConnectError::PeerNotVhdMount";
             // `NamedPipeClient` closes its underlying HANDLE on drop,
             // so the explicit `shutdown()` here is a half-close marker
             // (and a flush of any future write buffer) rather than the
             // sole release path — drop still does the real cleanup.
+            log::warn!(
+                "vhd_bridge: peer pipe-server image basename {:?} \
+                 is not in the accepted set; closing pipe",
+                name
+            );
             let _ = client.shutdown().await;
             Err(ConnectError::PeerNotVhdMount)
         }
         Err(e) => {
-            // PID resolution or image-path query failed. Treat as
-            // I/O — the worker will retry. We still close the pipe
-            // explicitly to avoid keeping a half-trusted handle on the
-            // floor while the retry interval ticks.
+            // PID resolution or image-path query failed.  This is
+            // the path that fires on `OpenProcess` access-denied,
+            // `GetNamedPipeServerProcessId` failure, or stale-PID
+            // races where the peer has already died by the time we
+            // probe it.  Logging here distinguishes that case from
+            // the basename-rejection branch above.
+            log::warn!(
+                "vhd_bridge: peer image probe failed; closing pipe: {:?}",
+                e
+            );
             let _ = client.shutdown().await;
             Err(e)
         }
