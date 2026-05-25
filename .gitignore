@@ -63,3 +63,4 @@ flutter/web/
 secret.sec
 vhd_bridge_secret.bin
 docs/vhd-rustdesk-bridge-controlled-side-handoff.md
+logs
