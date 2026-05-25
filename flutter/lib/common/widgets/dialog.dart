@@ -1321,6 +1321,60 @@ void showWaitAcceptDialog(SessionID sessionId, String type, String title,
   });
 }
 
+void showWaitVhdApprovalDialog(SessionID sessionId, String type, String title,
+    String text, OverlayDialogManager dialogManager) {
+  final tag = '$sessionId-wait-vhd-approval';
+  // The controlled side pushes a PENDING msgbox once per second while VHDMount
+  // is verifying. Skip if our dialog is already up so we don't stack overlays
+  // or reset the spinner. Don't dismissAll() — that would tear down unrelated
+  // dialogs the user may have opened.
+  if (dialogManager.existing(tag)) {
+    return;
+  }
+  dialogManager.show(tag: tag, (setState, close, context) {
+    onCancel() {
+      close();
+      closeConnection();
+    }
+
+    return CustomAlertDialog(
+      title: null,
+      content: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 40,
+            height: 40,
+            child: CircularProgressIndicator(),
+          ),
+          const SizedBox(width: 20),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  translate(title.isEmpty ? 'Verifying' : title),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(translate(text)),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        dialogButton('Cancel', onPressed: onCancel, isOutline: true),
+      ],
+      onCancel: onCancel,
+    );
+  });
+}
+
 void showRestartRemoteDevice(PeerInfo pi, String id, SessionID sessionId,
     OverlayDialogManager dialogManager) async {
   final res = await dialogManager

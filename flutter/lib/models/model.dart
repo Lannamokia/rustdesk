@@ -930,6 +930,8 @@ class FfiModel with ChangeNotifier {
       showOnBlockDialog(sessionId, type, title, text, dialogManager);
     } else if (type == 'wait-uac') {
       showWaitUacDialog(sessionId, dialogManager, type);
+    } else if (type == 'wait-vhd-approval') {
+      showWaitVhdApprovalDialog(sessionId, type, title, text, dialogManager);
     } else if (type == 'elevation-error') {
       showElevationError(sessionId, type, title, text, dialogManager);
     } else if (type == 'relay-hint' || type == 'relay-hint2') {
