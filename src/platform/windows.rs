@@ -3189,10 +3189,25 @@ pub fn install_service() -> bool {
     let filter = format!(" /FI \"PID ne {}\"", get_current_pid());
     Config::set_option("stop-service".into(), "".into());
     crate::ipc::EXIT_RECV_CLOSE.store(false, Ordering::Relaxed);
+    // Headless / single-file `--install-service`: GUI install_me() copies the whole
+    // parent dir, but here we only have a standalone exe, so make sure the target
+    // path exists and the running exe is staged at `exe` before `sc create` points
+    // its binPath there. Skip when source equals destination (re-install in place).
+    let src_exe = std::env::current_exe()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let copy_self = if src_exe.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "if not exist \"{path}\" md \"{path}\"\nif /I not \"{src_exe}\"==\"{exe}\" copy /Y \"{src_exe}\" \"{exe}\""
+        )
+    };
     let cmds = format!(
         "
 chcp 65001
 taskkill /F /IM {app_name}.exe{filter}
+{copy_self}
 cscript \"{tray_shortcut}\"
 copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
 {import_config}
