@@ -5517,6 +5517,69 @@ async fn start_ipc(
 ) -> ResultType<()> {
     use hbb_common::anyhow::anyhow;
 
+    // vhd-machine-auth-bridge: the controlled-only / vhd-bridge build
+    // ships without `flutter` and without `inline_sciter`, so the
+    // `--cm` / `--cm-no-ui` subcommands in `core_main.rs` are
+    // cfg-stripped to no-ops. Spawning a CM subprocess in this build
+    // produces a child that immediately exits (no UI handler is
+    // compiled in), and the loop below times out after ~8 s, kills
+    // the live remote-control connection ("Failed to connect to
+    // connection manager"), and the operator sees the session drop
+    // every few seconds.
+    //
+    // This build form is server-only by design: there is no logged-in
+    // user to click an "Accept/Reject" prompt and the validate-
+    // password path (plus the planned VHDMount peer-approval round
+    // trip in §11.x) is the policy gate. Returning Ok(()) here makes
+    // the connection's CM IPC arm a no-op:
+    //
+    //   * `rx_to_cm` keeps draining as the connection emits
+    //     `ipc::Data::Login` / `Authorize` / etc. — those messages
+    //     have nowhere meaningful to go in this build, so we drop
+    //     them silently.
+    //   * `tx_from_cm` is left unsignalled — the connection's main
+    //     loop already treats "no CM messages" as "no operator
+    //     button presses", which is exactly the steady state.
+    //   * `tx_stream_ready` MUST be tripped at least once so the
+    //     authorize-then-stream code path in `connection.rs::on_login`
+    //     does not stall waiting for the CM-ready handshake. We
+    //     send and then drop it; subsequent sends would just no-op
+    //     anyway because the receiver only reads it once.
+    //
+    // The branch is gated on `controlled-only` rather than on
+    // `vhd-bridge` because it is `controlled-only` that strips the
+    // controller-side UI (CM lives on the controlled side, but its
+    // chrome — sciter / flutter — does not exist in this flavour).
+    // Builds that have flutter or inline_sciter compiled in keep the
+    // original CM bring-up path so a Maintenance_Overlay (Task 16) or
+    // a Flutter-side CM window can still latch onto it.
+    #[cfg(all(
+        feature = "controlled-only",
+        not(feature = "flutter"),
+        not(feature = "inline_sciter"),
+    ))]
+    {
+        log::info!(
+            "vhd_bridge: skipping CM IPC bring-up — controlled-only build has no \
+             CM UI handler compiled in (no flutter, no sciter); the connection's \
+             CM arm becomes a no-op so authorize-then-stream proceeds without a \
+             CM round trip."
+        );
+        // Trip the stream-ready signal so the connection's main loop
+        // does not wait for a CM-ready handshake that will never come.
+        let _ = tx_stream_ready.send(()).await;
+        // Drain `rx_to_cm` for the lifetime of the connection so
+        // upstream `unbounded_send` calls do not pile up with
+        // nowhere to go. The receiver closes when the connection
+        // tears down; on close, exit cleanly so this task does not
+        // outlive its parent connection.
+        while rx_to_cm.recv().await.is_some() {
+            // drop
+        }
+        let _ = tx_from_cm; // silence "unused" without a #[allow]
+        return Ok(());
+    }
+
     loop {
         if !crate::platform::is_prelogin() {
             break;
