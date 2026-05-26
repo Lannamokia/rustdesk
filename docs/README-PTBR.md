@@ -49,7 +49,7 @@ Sem nenhuma feature ativa, `cargo run` e o fluxo upstream funcionam identicament
 - **`libs/build_support/`** &ndash; crate auxiliar compartilhada por `build.rs` e CI: gate rigoroso de pré-requisitos, parser tolerante para `secret.sec`, teste de coerência com a doc do protocolo.
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; referência do protocolo de fio.
 - **`scripts/check_bridge_strings.ps1`** &ndash; scanner pós-build que garante que bytes em claro de `HBBS Key` / `VHDMount Key` não vazem nos artefatos.
-- **`.github/workflows/vhd-bridge.yml`** &mdash; matriz CI compilando os artefatos Windows feature-on / feature-off / controlled-only.
+- **`.github/workflows/build.yml`** &mdash; workflow CI multiplataforma; os jobs Windows-chave são **controller-windows** (bundle Flutter desktop, features padrão + `hwcodec` + `vram` + `flutter`, sem bridge) e **controlled-windows** (sidecar controlado, `--features vhd-bridge,controlled-only,hwcodec,vram`); executa também os scripts de vazamento + smoke.
 
 Especificação completa em [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
@@ -89,7 +89,7 @@ Em seguida, preencha `secret.sec` (dev-only) ou defina as variáveis equivalente
 
 ```sh
 # Build sidecar de produção (ponte ON, controlador removido)
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # Apenas ponte (UI do controlador mantida para iteração de dev)
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### Verificação
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ A ponte exige cinco entradas em build time:
 Dois caminhos:
 
 1. **Dev local** &mdash; preencher `secret.sec` na raiz com `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. Ignorado por [`.gitignore`](../.gitignore).
-2. **CI** &mdash; configurar os mesmos nomes como repository secrets do GitHub Actions; [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) os injeta como variáveis mascaradas. **`secret.sec` nunca é materializado nos runners**.
+2. **CI** &mdash; configurar os mesmos nomes como repository secrets do GitHub Actions; [`.github/workflows/build.yml`](../.github/workflows/build.yml) os injeta como variáveis mascaradas. **`secret.sec` nunca é materializado nos runners**.
 
 `secret.sec` e `vhd_bridge_secret.bin` estão em `.gitignore` e **não devem ser commitados**. `scripts/check_bridge_strings.ps1` é a rede de segurança pós-build.
 

@@ -49,7 +49,7 @@ Hiçbir feature aktif değilken `cargo run` ve upstream build akışı aynen ça
 - **`libs/build_support/`** &ndash; `build.rs` ve CI tarafından paylaşılan yardımcı crate: katı önkoşul kapısı, hoşgörülü `secret.sec` parser'ı, protokol dokümanıyla tutarlılık testi.
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; kablolu protokol referansı.
 - **`scripts/check_bridge_strings.ps1`** &ndash; build sonrası sızıntı tarayıcı: çıktılarda açık metin `HBBS Key` / `VHDMount Key` baytlarının olmadığını garanti eder.
-- **`.github/workflows/vhd-bridge.yml`** &mdash; feature-on / feature-off / controlled-only Windows artifact'larını derleyen CI matrisi.
+- **`.github/workflows/build.yml`** &mdash; çapraz platform CI iş akışı; kritik Windows job'ları **controller-windows** (Flutter desktop bundle, varsayılan features + `hwcodec` + `vram` + `flutter`, bridge'siz) ve **controlled-windows** (controlled sidecar, `--features vhd-bridge,controlled-only,hwcodec,vram`); sızıntı + smoke scriptlerini de çalıştırır.
 
 Tam belirtim: [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
@@ -89,7 +89,7 @@ Sonra dev-only `secret.sec`'i doldur veya ilgili env değişkenlerini ayarla, so
 
 ```sh
 # Üretim sidecar build'i (köprü ON, controller çıkarılmış)
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # Yalnızca köprü (controller UI dev için korunur)
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### Doğrulama
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ Köprü beş build-zamanı girdi ister:
 İki yol:
 
 1. **Yerel dev** &mdash; depo kökündeki `secret.sec`'i `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:` ile doldur. Dosya [`.gitignore`](../.gitignore) ile yok sayılır.
-2. **CI** &mdash; aynı adlarla GitHub Actions repository secret olarak yapılandır; [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) maskeli env değişkenleri olarak enjekte eder. **`secret.sec` runner'larda asla somutlaştırılmaz**.
+2. **CI** &mdash; aynı adlarla GitHub Actions repository secret olarak yapılandır; [`.github/workflows/build.yml`](../.github/workflows/build.yml) maskeli env değişkenleri olarak enjekte eder. **`secret.sec` runner'larda asla somutlaştırılmaz**.
 
 `secret.sec` ve `vhd_bridge_secret.bin` her ikisi de `.gitignore`'dadır ve **kesinlikle commit edilmemelidir**. `scripts/check_bridge_strings.ps1` build sonrası emniyet ağıdır.
 

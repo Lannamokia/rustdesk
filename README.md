@@ -56,7 +56,7 @@ Both features default to **off**. Existing `cargo run` / upstream build flows ar
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; wire-protocol reference (frame layout, message catalogue, error codes, replay/timing rules).
 - **`scripts/check_bridge_strings.ps1`** &ndash; post-build leakage scanner. Asserts `RS_PUB_KEY` consistency and that no plaintext `HBBS Key` / `VHDMount Key` bytes leak into shipped binaries.
 - **`scripts/smoke_controlled_only.ps1`** &ndash; CI smoke harness for the `controlled-only` flavour.
-- **`.github/workflows/vhd-bridge.yml`** &ndash; CI matrix building the feature-on / feature-off / controlled-only Windows artifacts and running the leakage + smoke scripts.
+- **`.github/workflows/build.yml`** &ndash; the cross-platform CI workflow; the **controller-windows** job builds the Flutter desktop bundle (default features + `hwcodec` + `vram` + `flutter`, no bridge) and the **controlled-windows** job builds the controlled sidecar (`--features vhd-bridge,controlled-only,hwcodec,vram`) and runs the leakage + smoke scripts.
 
 The full design lives under [`.kiro/specs/vhd-machine-auth-bridge/`](.kiro/specs/vhd-machine-auth-bridge) (requirements, design, tasks).
 
@@ -109,7 +109,7 @@ Then either populate the dev-only `secret.sec` file (see [Secrets and CI](#secre
 ```sh
 # Production sidecar build (bridge on, controller stripped)
 cargo build --release \
-  --features vhd-bridge,controlled-only \
+  --features vhd-bridge,controlled-only,hwcodec,vram \
   --target x86_64-pc-windows-msvc
 
 # Bridge-only (keeps the controller UI for dev iteration)
@@ -121,9 +121,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 The full local verification matrix used during development:
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -216,13 +216,13 @@ The bridge consumes five build-time inputs:
 Two paths are supported:
 
 1. **Local dev** &mdash; populate `secret.sec` in the repo root with the lines `HBBS Key:`, `HBBS Host:`, `HBBR Host:`, `VHDMount Key:`, `VHDMount Key Version:`. The file is **git-ignored** (see [`.gitignore`](.gitignore)) and `build_support::parse_secret_sec` reads it.
-2. **CI** &mdash; configure the same names as **GitHub Actions repository secrets** under `Settings &rarr; Secrets and variables &rarr; Actions`. The workflow at [`.github/workflows/vhd-bridge.yml`](.github/workflows/vhd-bridge.yml) injects them into the build via masked env vars; `secret.sec` is **never materialized on runners**.
+2. **CI** &mdash; configure the same names as **GitHub Actions repository secrets** under `Settings &rarr; Secrets and variables &rarr; Actions`. The workflow at [`.github/workflows/build.yml`](.github/workflows/build.yml) injects them into the build via masked env vars; `secret.sec` is **never materialized on runners**.
 
 Both `secret.sec` and `vhd_bridge_secret.bin` are listed in `.gitignore` and must never be committed. `scripts/check_bridge_strings.ps1` is the post-build safety net that scans shipped artifacts for plaintext key material.
 
 ## Controlled-side deployment
 
-The `controlled-windows` workflow artifact (`rustdesk-controlled-windows-x86_64`) is a standalone `rustdesk.exe` built with `--features vhd-bridge,controlled-only`. The binary still understands the upstream RustDesk CLI surface for the controlled half (`--service`, `--server`, `--install-service`, `--cm`, `--tray`) but refuses every initiator subcommand at startup (`--connect`, `--port-forward`, etc).
+The `controlled-windows` workflow artifact (`rustdesk-controlled-windows-x86_64`) is a standalone `rustdesk.exe` built with `--features vhd-bridge,controlled-only,hwcodec,vram`. The binary still understands the upstream RustDesk CLI surface for the controlled half (`--service`, `--server`, `--install-service`, `--cm`, `--tray`) but refuses every initiator subcommand at startup (`--connect`, `--port-forward`, etc).
 
 ### One-time install (recommended)
 
@@ -282,7 +282,7 @@ Get-Content "$env:ProgramData\RustDesk\log\service.log" -Tail 50 -Wait
 
 # Bridge state (only present in vhd-bridge builds, requires VHDMount running).
 # Reads the `vhd-bridge-state` IPC key — see docs/vhd-rustdesk-bridge-protocol.md §11.3 for the error-code vocabulary.
-& "C:\Program Files\RustDeskControlled\rustdesk.exe" --get-option vhd-bridge-state
+& "C:\Program Files\RustDeskControlled\rustdesk.exe" --vhd-bridge-state
 
 # Upstream-id-bound peer ID assigned by your hbbs.
 & "C:\Program Files\RustDeskControlled\rustdesk.exe" --get-id
@@ -317,7 +317,7 @@ Bridge-specific:
 - **[`scripts/`](scripts)** &mdash; PowerShell smoke + leakage scanners.
 - **[`tests/feature_off_parity.rs`](tests/feature_off_parity.rs)**, **[`tests/smoke_2fa_disabled.rs`](tests/smoke_2fa_disabled.rs)**, **[`tests/vhd_bridge_integration.rs`](tests/vhd_bridge_integration.rs)** &mdash; integration suites.
 - **[`.kiro/specs/vhd-machine-auth-bridge/`](.kiro/specs/vhd-machine-auth-bridge)** &mdash; full spec (requirements / design / tasks).
-- **[`.github/workflows/vhd-bridge.yml`](.github/workflows/vhd-bridge.yml)** &mdash; bridge CI matrix.
+- **[`.github/workflows/build.yml`](.github/workflows/build.yml)** &mdash; cross-platform CI; key Windows jobs are `controller-windows` (Flutter desktop) and `controlled-windows` (bridge sidecar).
 
 Inherited from upstream (unchanged structurally):
 

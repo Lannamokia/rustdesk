@@ -49,7 +49,7 @@
 - **`libs/build_support/`** &ndash; `build.rs`와 CI가 공유하는 보조 crate. 사전요건 변수 엄격 게이트, `secret.sec` 관용 파서, 프로토콜 문서 무결성 테스트.
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; 와이어 프로토콜 명세서.
 - **`scripts/check_bridge_strings.ps1`** &ndash; 빌드 후 누출 스캐너. `HBBS Key` / `VHDMount Key` 평문이 바이너리에 남지 않음을 보증.
-- **`.github/workflows/vhd-bridge.yml`** &mdash; feature-on / feature-off / controlled-only 세 가지 Windows 산출물을 빌드하는 CI 매트릭스.
+- **`.github/workflows/build.yml`** &mdash; 크로스 플랫폼 CI 워크플로우. 핵심 Windows 잡은 **controller-windows**(Flutter 데스크톱 번들, 기본 features + `hwcodec` + `vram` + `flutter`, bridge 없음)와 **controlled-windows**(피제어 사이드카, `--features vhd-bridge,controlled-only,hwcodec,vram`)이며, 누출 + smoke 스크립트도 실행한다.
 
 전체 설계 문서는 [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge)에 있습니다.
 
@@ -89,7 +89,7 @@ LIBCLANG_PATH          = <LLVM\x64\bin 경로>
 
 ```sh
 # 운영 사이드카 빌드 (브리지 켜기 + Controller 제거)
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # 브리지만 (개발 중 Controller UI 유지)
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### 검증
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ cargo test  -p build_support
 두 가지 공급 방법:
 
 1. **로컬 개발** &mdash; 저장소 루트의 `secret.sec`에 `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`을 기록. 해당 파일은 [`.gitignore`](../.gitignore)에 의해 무시됩니다.
-2. **CI** &mdash; GitHub Actions 저장소 비밀로 동일 이름을 등록. [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml)이 마스킹된 환경 변수로 주입하며, **`secret.sec`는 CI 러너에 절대 기록되지 않습니다**.
+2. **CI** &mdash; GitHub Actions 저장소 비밀로 동일 이름을 등록. [`.github/workflows/build.yml`](../.github/workflows/build.yml)이 마스킹된 환경 변수로 주입하며, **`secret.sec`는 CI 러너에 절대 기록되지 않습니다**.
 
 `secret.sec`와 `vhd_bridge_secret.bin`은 모두 `.gitignore`에 포함되어 있으며 **커밋 금지**입니다. `scripts/check_bridge_strings.ps1`는 빌드 후 최종 안전망입니다.
 

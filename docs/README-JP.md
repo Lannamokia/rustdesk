@@ -49,7 +49,7 @@
 - **`libs/build_support/`** &ndash; `build.rs` と CI が共有するヘルパー crate。前提変数の厳格ゲート、`secret.sec` の寛容なパーサ、プロトコル文書との整合性テストを提供。
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; ワイヤープロトコル仕様書。
 - **`scripts/check_bridge_strings.ps1`** &ndash; ビルド後の漏洩スキャナ。`HBBS Key` / `VHDMount Key` の平文がバイナリに残らないことを検証。
-- **`.github/workflows/vhd-bridge.yml`** &mdash; feature-on / feature-off / controlled-only の 3 種を Windows でビルドする CI マトリクス。
+- **`.github/workflows/build.yml`** &mdash; ワークフロー（クロスプラットフォーム CI）。主な Windows ジョブは **controller-windows**（Flutter デスクトップバンドル、デフォルト features + `hwcodec` + `vram` + `flutter`、bridge なし）と **controlled-windows**（受動側サイドカー、`--features vhd-bridge,controlled-only,hwcodec,vram`）で、漏洩 + smoke スクリプトも実行する。
 
 完全な設計ドキュメントは [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge) にあります。
 
@@ -89,7 +89,7 @@ LIBCLANG_PATH          = <LLVM\x64\bin のパス>
 
 ```sh
 # 本番サイドカービルド（ブリッジ有効・Controller 除去）
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # ブリッジのみ（開発用に Controller UI を残す）
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### 検証
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ cargo test  -p build_support
 供給経路は 2 種類：
 
 1. **ローカル開発** &mdash; リポジトリルートに `secret.sec` を作成し `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:` を記載。同ファイルは [`.gitignore`](../.gitignore) で無視されます。
-2. **CI** &mdash; GitHub Actions のリポジトリシークレットとして同名で登録。[`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) がマスクされた環境変数として注入し、**`secret.sec` は CI runner には決して書き出されません**。
+2. **CI** &mdash; GitHub Actions のリポジトリシークレットとして同名で登録。[`.github/workflows/build.yml`](../.github/workflows/build.yml) がマスクされた環境変数として注入し、**`secret.sec` は CI runner には決して書き出されません**。
 
 `secret.sec` と `vhd_bridge_secret.bin` は両方とも `.gitignore` 入りで、**コミット禁止**です。`scripts/check_bridge_strings.ps1` がビルド後の最終防衛線です。
 

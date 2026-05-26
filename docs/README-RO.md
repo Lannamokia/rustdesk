@@ -49,7 +49,7 @@ Fără feature-uri active, `cargo run` și fluxul de build upstream rulează ide
 - **`libs/build_support/`** &ndash; crate auxiliar partajat între `build.rs` și CI: poartă strictă de prerechizite, parser tolerant pentru `secret.sec`, test de coerență cu documentul de protocol.
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; referință protocol de fir.
 - **`scripts/check_bridge_strings.ps1`** &ndash; scanner post-build de scurgeri: garantează că niciun octet în clar de `HBBS Key` / `VHDMount Key` nu intră în artefacte.
-- **`.github/workflows/vhd-bridge.yml`** &mdash; matrice CI care construiește artefactele Windows feature-on / feature-off / controlled-only.
+- **`.github/workflows/build.yml`** &mdash; flux de lucru CI multi-platformă; job-urile Windows-cheie sunt **controller-windows** (bundle Flutter desktop, features implicite + `hwcodec` + `vram` + `flutter`, fără bridge) și **controlled-windows** (sidecar controlled, `--features vhd-bridge,controlled-only,hwcodec,vram`); rulează și scripturile de scurgere + smoke.
 
 Specificația completă în [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
@@ -89,7 +89,7 @@ Apoi populează `secret.sec` (doar pentru dev) sau setează variabilele de mediu
 
 ```sh
 # Build sidecar de producție (punte ON, controller eliminat)
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # Doar punte (UI controller păstrat pentru iterații dev)
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### Verificare
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ Puntea cere cinci intrări la build:
 Două căi:
 
 1. **Dev local** &mdash; populează `secret.sec` în rădăcina depozitului cu `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. Fișierul este ignorat de [`.gitignore`](../.gitignore).
-2. **CI** &mdash; configurează aceleași nume ca repository secrets în GitHub Actions; [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) le injectează ca variabile de mediu mascate. **`secret.sec` nu este materializat niciodată pe runners**.
+2. **CI** &mdash; configurează aceleași nume ca repository secrets în GitHub Actions; [`.github/workflows/build.yml`](../.github/workflows/build.yml) le injectează ca variabile de mediu mascate. **`secret.sec` nu este materializat niciodată pe runners**.
 
 `secret.sec` și `vhd_bridge_secret.bin` sunt amândouă în `.gitignore` și **nu trebuie commitate niciodată**. `scripts/check_bridge_strings.ps1` este plasa de siguranță post-build.
 

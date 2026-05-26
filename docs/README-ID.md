@@ -49,7 +49,7 @@ Tanpa feature aktif, `cargo run` dan alur build upstream berjalan tanpa perubaha
 - **`libs/build_support/`** &ndash; crate pendukung yang dibagi `build.rs` dan CI: gerbang prasyarat ketat, parser `secret.sec` toleran, uji konsistensi terhadap dokumen protokol.
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; referensi wire protocol.
 - **`scripts/check_bridge_strings.ps1`** &ndash; pemindai kebocoran pasca-build: memastikan tidak ada byte plaintext `HBBS Key` / `VHDMount Key` bocor ke artefak.
-- **`.github/workflows/vhd-bridge.yml`** &mdash; matriks CI yang membangun artefak Windows feature-on / feature-off / controlled-only.
+- **`.github/workflows/build.yml`** &mdash; cross-platform CI workflow; the key Windows jobs are **controller-windows** (Flutter desktop bundle, default features + `hwcodec` + `vram` + `flutter`, no bridge) and **controlled-windows** (controlled sidecar, `--features vhd-bridge,controlled-only,hwcodec,vram`), running the leakage + smoke scripts.
 
 Spesifikasi lengkap di [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
@@ -89,7 +89,7 @@ Lalu isi `secret.sec` (khusus dev) atau set variabel env terkait, lalu:
 
 ```sh
 # Build sidecar produksi (jembatan ON, controller dihapus)
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # Hanya jembatan (UI controller dipertahankan untuk dev)
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### Verifikasi
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ Jembatan butuh lima input saat build:
 Dua jalur:
 
 1. **Dev lokal** &mdash; isi `secret.sec` di root repo dengan `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. File diabaikan oleh [`.gitignore`](../.gitignore).
-2. **CI** &mdash; konfigurasi nama yang sama sebagai repository secret GitHub Actions; [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) menyuntikkannya sebagai variabel env yang dimasking. **`secret.sec` tidak pernah dimaterialkan di runner**.
+2. **CI** &mdash; konfigurasi nama yang sama sebagai repository secret GitHub Actions; [`.github/workflows/build.yml`](../.github/workflows/build.yml) menyuntikkannya sebagai variabel env yang dimasking. **`secret.sec` tidak pernah dimaterialkan di runner**.
 
 `secret.sec` dan `vhd_bridge_secret.bin` keduanya ada di `.gitignore` dan **tidak boleh di-commit**. `scripts/check_bridge_strings.ps1` adalah jaring pengaman pasca-build.
 

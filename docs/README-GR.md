@@ -49,7 +49,7 @@
 - **`libs/build_support/`** &ndash; βοηθητικό crate κοινό για `build.rs` και CI: αυστηρή πύλη προαπαιτούμενων, ανεκτικός parser για `secret.sec`, έλεγχος συνέπειας με τη τεκμηρίωση πρωτοκόλλου.
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; αναφορά πρωτοκόλλου σύρματος.
 - **`scripts/check_bridge_strings.ps1`** &ndash; σαρωτής διαρροών μετά το build: εγγυάται ότι κανένα plaintext byte από `HBBS Key` / `VHDMount Key` δεν διαρρέει στα παράγωγα.
-- **`.github/workflows/vhd-bridge.yml`** &mdash; μήτρα CI που χτίζει τα Windows artifacts feature-on / feature-off / controlled-only.
+- **`.github/workflows/build.yml`** &mdash; ροή εργασιών CI πολλαπλών πλατφορμών· οι βασικές εργασίες Windows είναι το **controller-windows** (Flutter desktop bundle, προεπιλεγμένες features + `hwcodec` + `vram` + `flutter`, χωρίς bridge) και το **controlled-windows** (controlled sidecar, `--features vhd-bridge,controlled-only,hwcodec,vram`)· εκτελεί επίσης τα scripts διαρροής και smoke.
 
 Πλήρης προδιαγραφή στο [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
@@ -89,7 +89,7 @@ LIBCLANG_PATH          = <διαδρομή προς LLVM\x64\bin>
 
 ```sh
 # Παραγωγικό sidecar build (γέφυρα ON, controller αφαιρεμένος)
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # Μόνο γέφυρα (UI controller διατηρείται για dev)
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### Επαλήθευση
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ cargo test  -p build_support
 Δύο διαδρομές:
 
 1. **Τοπική ανάπτυξη** &mdash; συμπληρώστε το `secret.sec` στη ρίζα του αποθετηρίου με γραμμές `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. Το αρχείο αγνοείται από το [`.gitignore`](../.gitignore).
-2. **CI** &mdash; ρυθμίστε τα ίδια ονόματα ως repository secrets στο GitHub Actions· το [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) τα εγχέει ως καλυμμένες env μεταβλητές. **Το `secret.sec` δεν υλοποιείται ποτέ στους runners**.
+2. **CI** &mdash; ρυθμίστε τα ίδια ονόματα ως repository secrets στο GitHub Actions· το [`.github/workflows/build.yml`](../.github/workflows/build.yml) τα εγχέει ως καλυμμένες env μεταβλητές. **Το `secret.sec` δεν υλοποιείται ποτέ στους runners**.
 
 `secret.sec` και `vhd_bridge_secret.bin` βρίσκονται και τα δύο στο `.gitignore` και **δεν πρέπει ποτέ να γίνουν commit**. Το `scripts/check_bridge_strings.ps1` είναι το δίχτυ ασφαλείας μετά το build.
 

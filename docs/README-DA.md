@@ -49,7 +49,7 @@ Uden aktive features kører `cargo run` og upstream-build-flowet uændret.
 - **`libs/build_support/`** &ndash; hjælpe-crate delt mellem `build.rs` og CI: streng forudsætningsport, tolerant `secret.sec`-parser, konsistenstest mod protokoldokumentet.
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; wire-protokolreference.
 - **`scripts/check_bridge_strings.ps1`** &ndash; post-build-lækscanner: garanterer at `HBBS Key` / `VHDMount Key` aldrig lækker som klartekst i artefakter.
-- **`.github/workflows/vhd-bridge.yml`** &mdash; CI-matrix der bygger feature-on / feature-off / controlled-only Windows-artefakter.
+- **`.github/workflows/build.yml`** &mdash; tværgående CI-workflow; de centrale Windows-jobs er **controller-windows** (Flutter desktop-bundle, default features + `hwcodec` + `vram` + `flutter`, uden bridge) og **controlled-windows** (controlled sidecar, `--features vhd-bridge,controlled-only,hwcodec,vram`), og kører også leak- og smoke-scripts.
 
 Fuld specifikation i [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
@@ -89,7 +89,7 @@ Udfyld derefter dev-only `secret.sec` eller sæt de tilsvarende miljøvariabler,
 
 ```sh
 # Produktions-sidecar (bro ON, controller fjernet)
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # Kun bro (controller-UI bevaret til dev)
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### Verifikation
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ Broen kræver fem build-time-input:
 To veje:
 
 1. **Lokal udvikling** &mdash; udfyld `secret.sec` i repo-roden med `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. Filen ignoreres af [`.gitignore`](../.gitignore).
-2. **CI** &mdash; opsæt samme navne som GitHub Actions-repo-hemmeligheder; [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) injicerer dem som maskerede env-variabler. **`secret.sec` materialiseres aldrig på runners**.
+2. **CI** &mdash; opsæt samme navne som GitHub Actions-repo-hemmeligheder; [`.github/workflows/build.yml`](../.github/workflows/build.yml) injicerer dem som maskerede env-variabler. **`secret.sec` materialiseres aldrig på runners**.
 
 `secret.sec` og `vhd_bridge_secret.bin` ligger begge i `.gitignore` og må **aldrig committes**. `scripts/check_bridge_strings.ps1` er sikkerhedsnettet efter build.
 

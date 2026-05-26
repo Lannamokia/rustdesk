@@ -49,7 +49,7 @@ Aktív feature-ök nélkül a `cargo run` és az upstream build folyamat változ
 - **`libs/build_support/`** &ndash; segédcrate, amelyet a `build.rs` és a CI is használ: szigorú előfeltétel-kapu, toleráns `secret.sec` parser, protokoll-doc-konzisztencia teszt.
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; vezeték protokoll referencia.
 - **`scripts/check_bridge_strings.ps1`** &ndash; build utáni szivárgás-szkenner: garantálja, hogy `HBBS Key` / `VHDMount Key` nyílt szövegű bájtjai ne kerüljenek a buildbe.
-- **`.github/workflows/vhd-bridge.yml`** &mdash; CI mátrix, amely feature-on / feature-off / controlled-only Windows-artifactokat épít.
+- **`.github/workflows/build.yml`** &mdash; platformközi CI-workflow; a kulcsfontosságú Windows-jobok a **controller-windows** (Flutter desktop bundle, alapértelmezett features + `hwcodec` + `vram` + `flutter`, bridge nélkül) és a **controlled-windows** (controlled sidecar, `--features vhd-bridge,controlled-only,hwcodec,vram`); itt futnak a szivárgás- és smoke-szkriptek is.
 
 Teljes specifikáció: [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
@@ -89,7 +89,7 @@ Ezután töltsd ki a dev-only `secret.sec`-et vagy állítsd be a megfelelő env
 
 ```sh
 # Produkciós sidecar build (híd ON, controller eltávolítva)
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # Csak híd (controller UI fennmarad fejlesztéshez)
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### Ellenőrzés
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ A híd öt build-időbeli bemenetet vár:
 Két út:
 
 1. **Helyi fejlesztés** &mdash; töltsd ki a `secret.sec`-et a repó gyökerében: `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. A fájl a [`.gitignore`](../.gitignore) miatt nem kerül verziókezelés alá.
-2. **CI** &mdash; ugyanezeket a neveket állítsd be GitHub Actions repository secret-ként; a [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) maszkolt env változókként injektálja. **A `secret.sec` soha nem materializálódik a runnereken**.
+2. **CI** &mdash; ugyanezeket a neveket állítsd be GitHub Actions repository secret-ként; a [`.github/workflows/build.yml`](../.github/workflows/build.yml) maszkolt env változókként injektálja. **A `secret.sec` soha nem materializálódik a runnereken**.
 
 A `secret.sec` és a `vhd_bridge_secret.bin` is `.gitignore`-ban van és **soha nem szabad** commitolni. A `scripts/check_bridge_strings.ps1` a build utáni biztonsági háló.
 

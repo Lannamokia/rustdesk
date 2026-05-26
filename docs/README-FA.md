@@ -49,7 +49,7 @@
 - **`libs/build_support/`** &ndash; crate کمکی مشترک بین `build.rs` و CI: دروازه پیش‌نیاز سخت‌گیر، parser تساهل‌گر برای `secret.sec`، آزمون انسجام در برابر سند پروتکل.
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; مرجع پروتکل سیمی.
 - **`scripts/check_bridge_strings.ps1`** &ndash; اسکنر نشت پس از ساخت: تضمین می‌کند بایت‌های پلِین‌تکست `HBBS Key` / `VHDMount Key` به آرتیفکت‌ها نشت نکنند.
-- **`.github/workflows/vhd-bridge.yml`** &mdash; ماتریس CI که آرتیفکت‌های Windows را برای feature-on / feature-off / controlled-only می‌سازد.
+- **`.github/workflows/build.yml`** &mdash; جریان کاری CI چندسکویی؛ کارهای کلیدی Windows عبارت‌اند از **controller-windows** (بسته دسکتاپ Flutter، features پیش‌فرض + `hwcodec` + `vram` + `flutter`، بدون bridge) و **controlled-windows** (سایدکار controlled، `--features vhd-bridge,controlled-only,hwcodec,vram`)؛ اسکریپت‌های نشت و smoke را نیز اجرا می‌کند.
 
 مشخصات کامل در [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
@@ -89,7 +89,7 @@ LIBCLANG_PATH          = <مسیر LLVM\x64\bin>
 
 ```sh
 # ساخت sidecar تولیدی (پل روشن، کنترلر حذف‌شده)
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # فقط پل (UI کنترلر برای توسعه حفظ می‌شود)
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### اعتبارسنجی
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ cargo test  -p build_support
 دو مسیر:
 
 1. **توسعه محلی** &mdash; `secret.sec` را در ریشه مخزن با خطوط `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:` پر کنید. این فایل توسط [`.gitignore`](../.gitignore) نادیده گرفته می‌شود.
-2. **CI** &mdash; همان نام‌ها را به‌عنوان repository secret در GitHub Actions تنظیم کنید؛ [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) آن‌ها را به‌صورت متغیرهای محیطی ماسک‌شده تزریق می‌کند. **`secret.sec` هرگز روی runner مادیت نمی‌یابد**.
+2. **CI** &mdash; همان نام‌ها را به‌عنوان repository secret در GitHub Actions تنظیم کنید؛ [`.github/workflows/build.yml`](../.github/workflows/build.yml) آن‌ها را به‌صورت متغیرهای محیطی ماسک‌شده تزریق می‌کند. **`secret.sec` هرگز روی runner مادیت نمی‌یابد**.
 
 `secret.sec` و `vhd_bridge_secret.bin` هر دو در `.gitignore` هستند و **هرگز نباید commit شوند**. `scripts/check_bridge_strings.ps1` تور ایمنی پس از ساخت است.
 

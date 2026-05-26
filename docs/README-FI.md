@@ -49,7 +49,7 @@ Ilman aktiivisia featureita `cargo run` ja yläjuoksun build-virta toimivat muut
 - **`libs/build_support/`** &ndash; aputraite jota `build.rs` ja CI jakavat: tiukka esiehtoportti, hyväksyvä `secret.sec`-parseri, johdonmukaisuustesti protokolladokumentin kanssa.
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; wire-protokollan viite.
 - **`scripts/check_bridge_strings.ps1`** &ndash; build-jälkeinen vuotoskanneri: takaa, että `HBBS Key` / `VHDMount Key` -tavuja ei vuoda selväkielisinä artefakteihin.
-- **`.github/workflows/vhd-bridge.yml`** &mdash; CI-matriisi, joka kääntää feature-on / feature-off / controlled-only Windows-artefaktit.
+- **`.github/workflows/build.yml`** &mdash; alustojen välinen CI-työnkulku; keskeiset Windows-työt ovat **controller-windows** (Flutter desktop -nippu, oletusominaisuudet + `hwcodec` + `vram` + `flutter`, ei siltaa) ja **controlled-windows** (controlled sidecar, `--features vhd-bridge,controlled-only,hwcodec,vram`), ja se ajaa myös vuoto- ja smoke-skriptit.
 
 Täysi spesifikaatio: [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
@@ -89,7 +89,7 @@ Täytä sitten dev-only `secret.sec` tai aseta vastaavat env-muuttujat, sitten:
 
 ```sh
 # Tuotanto-sidecar-build (silta päällä, controller poistettu)
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # Vain silta (controllerin UI säilyy dev-iteraatioon)
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### Verifiointi
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ Silta vaatii viisi build-aikaista syötettä:
 Kaksi reittiä:
 
 1. **Paikallinen kehitys** &mdash; täytä `secret.sec` repon juuressa riveillä `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. Tiedosto ohitetaan [`.gitignore`](../.gitignore):n kautta.
-2. **CI** &mdash; aseta samat nimet GitHub Actionsin repo-salaisuuksiksi; [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) injektoi ne maskaroidu env-muuttujina. **`secret.sec` ei koskaan materialisoidu runnereilla**.
+2. **CI** &mdash; aseta samat nimet GitHub Actionsin repo-salaisuuksiksi; [`.github/workflows/build.yml`](../.github/workflows/build.yml) injektoi ne maskaroidu env-muuttujina. **`secret.sec` ei koskaan materialisoidu runnereilla**.
 
 `secret.sec` ja `vhd_bridge_secret.bin` ovat molemmat `.gitignore`ssa, eikä niitä saa **koskaan committaa**. `scripts/check_bridge_strings.ps1` on rakennuksen jälkeinen turvaverkko.
 

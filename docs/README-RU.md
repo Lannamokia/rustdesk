@@ -49,7 +49,7 @@
 - **`libs/build_support/`** &ndash; вспомогательная crate, общая для `build.rs` и CI: строгий шлюз предусловий, толерантный парсер `secret.sec`, тест соответствия документу протокола.
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; описание провода-протокола.
 - **`scripts/check_bridge_strings.ps1`** &ndash; пост-сборочный сканер утечек: проверяет, что в артефактах нет открытых байт `HBBS Key` / `VHDMount Key`.
-- **`.github/workflows/vhd-bridge.yml`** &mdash; CI-матрица сборки feature-on / feature-off / controlled-only Windows-артефактов.
+- **`.github/workflows/build.yml`** &mdash; кросс-платформенный CI-воркфлоу; ключевые Windows-задачи &mdash; **controller-windows** (Flutter-desktop-сборка, default features + `hwcodec` + `vram` + `flutter`, без bridge) и **controlled-windows** (controlled-сайдкар, `--features vhd-bridge,controlled-only,hwcodec,vram`); также запускаются скрипты утечек и smoke.
 
 Полная спецификация: [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
@@ -89,7 +89,7 @@ LIBCLANG_PATH          = <путь к LLVM\x64\bin>
 
 ```sh
 # Боевая sidecar-сборка (мост включён, контроллер удалён)
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # Только мост (контроллерный UI остаётся для разработки)
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### Верификация
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ cargo test  -p build_support
 Два пути:
 
 1. **Локальная разработка** &mdash; заполнить `secret.sec` в корне репозитория строками `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. Файл игнорируется через [`.gitignore`](../.gitignore).
-2. **CI** &mdash; настроить одноимённые repository-secrets в GitHub Actions; [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) подаёт их как маскированные env-переменные. **`secret.sec` никогда не материализуется на runner-ах**.
+2. **CI** &mdash; настроить одноимённые repository-secrets в GitHub Actions; [`.github/workflows/build.yml`](../.github/workflows/build.yml) подаёт их как маскированные env-переменные. **`secret.sec` никогда не материализуется на runner-ах**.
 
 `secret.sec` и `vhd_bridge_secret.bin` оба в `.gitignore` и **никогда не должны коммититься**. `scripts/check_bridge_strings.ps1` &mdash; это страховочная сетка после сборки.
 

@@ -49,7 +49,7 @@
 - **`libs/build_support/`** &ndash; 由 `build.rs` 与 CI 共用的辅助 crate：包含严格的前置变量校验门、`secret.sec` 的容错解析器、与协议文档一致性检查。
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; 线协议参考文档。
 - **`scripts/check_bridge_strings.ps1`** &ndash; 构建后泄漏扫描器，确保 `HBBS Key` / `VHDMount Key` 明文不会进入产物。
-- **`.github/workflows/vhd-bridge.yml`** &ndash; 编译 feature-on / feature-off / controlled-only 三个 Windows flavour 的 CI 矩阵。
+- **`.github/workflows/build.yml`** &ndash; 跨平台 CI workflow；关键 Windows job 为 **controller-windows**（Flutter desktop bundle，默认 features + `hwcodec` + `vram` + `flutter`，不带 bridge）与 **controlled-windows**（受控端 sidecar，`--features vhd-bridge,controlled-only,hwcodec,vram`），并执行泄漏与 smoke 脚本。
 
 完整设计文档见 [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge)。
 
@@ -89,7 +89,7 @@ LIBCLANG_PATH          = <LLVM\x64\bin 路径>
 
 ```sh
 # 生产 sidecar 构建（启用桥接 + 剥离主控端）
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # 仅启用桥接（保留主控端 UI 用于开发）
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### 验证
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,13 +122,13 @@ cargo test  -p build_support
 两种供给方式：
 
 1. **本地开发** &mdash; 在仓库根目录创建 `secret.sec`，写入 `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`。该文件已被 [`.gitignore`](../.gitignore) 忽略。
-2. **CI** &mdash; 在 `Settings &rarr; Secrets and variables &rarr; Actions` 中以同名仓库密钥配置；[`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) 通过受掩码的环境变量注入。**`secret.sec` 不会被写入 CI runner**。
+2. **CI** &mdash; 在 `Settings &rarr; Secrets and variables &rarr; Actions` 中以同名仓库密钥配置；[`.github/workflows/build.yml`](../.github/workflows/build.yml) 通过受掩码的环境变量注入。**`secret.sec` 不会被写入 CI runner**。
 
 `secret.sec` 与 `vhd_bridge_secret.bin` 均已加入 `.gitignore`，**严禁提交**。`scripts/check_bridge_strings.ps1` 是构建后兜底扫描，确保产物中无明文密钥泄漏。
 
 ## 被控端部署
 
-`controlled-windows` workflow 的产物 `rustdesk-controlled-windows-x86_64` 是用 `--features vhd-bridge,controlled-only` 编出来的独立 `rustdesk.exe`。它仍然支持上游 RustDesk 受控端的全部 CLI（`--service` / `--server` / `--install-service` / `--cm` / `--tray`），但**任何发起方子命令**（`--connect` / `--port-forward` 等）在启动时直接拒绝。
+`controlled-windows` workflow 的产物 `rustdesk-controlled-windows-x86_64` 是用 `--features vhd-bridge,controlled-only,hwcodec,vram` 编出来的独立 `rustdesk.exe`。它仍然支持上游 RustDesk 受控端的全部 CLI（`--service` / `--server` / `--install-service` / `--cm` / `--tray`），但**任何发起方子命令**（`--connect` / `--port-forward` 等）在启动时直接拒绝。
 
 ### 一次性安装（推荐）
 
@@ -191,7 +191,7 @@ Get-Content "$env:ProgramData\RustDesk\log\service.log" -Tail 50 -Wait
 
 # 桥接状态（仅 vhd-bridge build 暴露，需要 VHDMount 在跑）
 # 读取 `vhd-bridge-state` IPC 键 —— 错误码字典见 docs/vhd-rustdesk-bridge-protocol.md §11.3
-& "C:\Program Files\RustDeskControlled\rustdesk.exe" --get-option vhd-bridge-state
+& "C:\Program Files\RustDeskControlled\rustdesk.exe" --vhd-bridge-state
 
 # 由 hbbs 分配的当前 peer ID
 & "C:\Program Files\RustDeskControlled\rustdesk.exe" --get-id

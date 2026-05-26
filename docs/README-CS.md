@@ -49,7 +49,7 @@ Bez aktivních features se `cargo run` a upstream tok sestavování chovají ide
 - **`libs/build_support/`** &ndash; pomocná crate sdílená mezi `build.rs` a CI: striktní brána prerekvizit, tolerantní parser `secret.sec`, test konzistence s dokumentací protokolu.
 - **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; reference drátového protokolu.
 - **`scripts/check_bridge_strings.ps1`** &ndash; post-build skener úniků: zaručuje, že žádné plain-textové bajty `HBBS Key` / `VHDMount Key` neuniknou do artefaktů.
-- **`.github/workflows/vhd-bridge.yml`** &mdash; CI matice sestavující Windows artefakty feature-on / feature-off / controlled-only.
+- **`.github/workflows/build.yml`** &mdash; cross-platform CI workflow; key Windows jobs are **controller-windows** (Flutter desktop bundle, default features + `hwcodec` + `vram` + `flutter`, no bridge) and **controlled-windows** (controlled sidecar, `--features vhd-bridge,controlled-only,hwcodec,vram`); the leakage + smoke scripts run there too.
 
 Plná specifikace v [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
@@ -89,7 +89,7 @@ Pak vyplňte dev-only `secret.sec` nebo nastavte odpovídající env proměnné 
 
 ```sh
 # Produkční sidecar build (most zapnut, controller odstraněn)
-cargo build --release --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
 
 # Pouze most (UI controlleru zachováno pro dev)
 cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
@@ -98,9 +98,9 @@ cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ### Ověření
 
 ```sh
-cargo check --lib --features vhd-bridge,controlled-only --target x86_64-pc-windows-msvc
-cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only
-cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
 cargo test  --test feature_off_parity
 cargo test  -p build_support
 ```
@@ -122,7 +122,7 @@ Most vyžaduje pět vstupů v době sestavení:
 Dvě cesty:
 
 1. **Lokální vývoj** &mdash; vyplnit `secret.sec` v rootu repozitáře řádky `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. Soubor je ignorován [`.gitignore`](../.gitignore).
-2. **CI** &mdash; nastavit stejnojmenné repository secrets v GitHub Actions; [`.github/workflows/vhd-bridge.yml`](../.github/workflows/vhd-bridge.yml) je injektuje jako maskované env proměnné. **`secret.sec` se na runnerech nikdy nematerializuje**.
+2. **CI** &mdash; nastavit stejnojmenné repository secrets v GitHub Actions; [`.github/workflows/build.yml`](../.github/workflows/build.yml) je injektuje jako maskované env proměnné. **`secret.sec` se na runnerech nikdy nematerializuje**.
 
 `secret.sec` i `vhd_bridge_secret.bin` jsou v `.gitignore` a **nikdy nesmí být commitovány**. `scripts/check_bridge_strings.ps1` je záchranná síť po sestavení.
 
