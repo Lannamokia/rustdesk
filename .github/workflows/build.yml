@@ -9,7 +9,7 @@
 #        · iOS       arm64                   (unsigned IPA)
 #
 #   2. RustDesk_Controlled with vhd-bridge   — single platform:
-#        · Windows x86_64 MSVC, --features vhd-bridge,controlled-only
+#        · Windows x86_64 MSVC, --features vhd-bridge,controlled-only,hwcodec,vram
 #
 # Triggers: any push / PR / manual run.  No nightly cron, no auto-publish to
 # GitHub Releases — every artifact lands under the workflow run as a normal
@@ -867,26 +867,26 @@ jobs:
             exit 1
           fi
 
-      - name: cargo check --lib (vhd-bridge,controlled-only)
+      - name: cargo check --lib (vhd-bridge,controlled-only,hwcodec,vram)
         shell: bash
         run: |
           cargo check --locked --lib \
             --target x86_64-pc-windows-msvc \
-            --features vhd-bridge,controlled-only
+            --features vhd-bridge,controlled-only,hwcodec,vram
 
-      - name: cargo test --lib (vhd-bridge,controlled-only)
+      - name: cargo test --lib (vhd-bridge,controlled-only,hwcodec,vram)
         shell: bash
         run: |
           cargo test --locked --lib \
             --target x86_64-pc-windows-msvc \
-            --features vhd-bridge,controlled-only
+            --features vhd-bridge,controlled-only,hwcodec,vram
 
       - name: cargo test --test smoke_2fa_disabled
         shell: bash
         run: |
           cargo test --locked \
             --target x86_64-pc-windows-msvc \
-            --features vhd-bridge,controlled-only \
+            --features vhd-bridge,controlled-only,hwcodec,vram \
             --test smoke_2fa_disabled
 
       - name: cargo test --test feature_off_parity
@@ -897,12 +897,12 @@ jobs:
             --target x86_64-pc-windows-msvc \
             --test feature_off_parity
 
-      - name: cargo build --bin rustdesk (release, vhd-bridge,controlled-only)
+      - name: cargo build --bin rustdesk (release, vhd-bridge,controlled-only,hwcodec,vram)
         shell: bash
         run: |
           cargo build --release --locked --bin rustdesk \
             --target x86_64-pc-windows-msvc \
-            --features vhd-bridge,controlled-only
+            --features vhd-bridge,controlled-only,hwcodec,vram
 
       - name: Bridge token / secret leakage scanner
         shell: pwsh
