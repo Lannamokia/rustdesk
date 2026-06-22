@@ -1275,6 +1275,22 @@ pub fn session_add_existed(
     displays: Vec<i32>,
     is_view_camera: bool,
 ) -> ResultType<()> {
+    // vhd-machine-auth-bridge §17.2 / Requirements 1.6, 20.1, 20.9:
+    // controlled-only forbids registering an outbound peer session
+    // map entry; without this, downstream `session_start_` would
+    // spawn an io_loop that hits the `Client::start` chokepoint
+    // anyway, but we refuse early so neither the FFI sync return nor
+    // `sessions::insert_peer_session_id` is exercised.
+    #[cfg(feature = "controlled-only")]
+    {
+        let _ = (peer_id, session_id, displays, is_view_camera);
+        log::warn!(
+            "vhd_bridge: refused flutter::session_add_existed in controlled-only build"
+        );
+        bail!("controlled-only build refuses to act as initiator");
+    }
+    #[cfg(not(feature = "controlled-only"))]
+    {
     let conn_type = if is_view_camera {
         ConnType::VIEW_CAMERA
     } else {
@@ -1282,6 +1298,7 @@ pub fn session_add_existed(
     };
     sessions::insert_peer_session_id(peer_id, conn_type, session_id, displays);
     Ok(())
+    }
 }
 
 /// Create a new remote session with the given id.
@@ -1306,6 +1323,33 @@ pub fn session_add(
     is_shared_password: bool,
     conn_token: Option<String>,
 ) -> ResultType<FlutterSession> {
+    // vhd-machine-auth-bridge §17.2 / Requirements 1.6, 20.1, 20.9:
+    // controlled-only must not initialize a `LoginConfigHandler` for
+    // an outbound peer; allowing it would persist `peers/*.toml`
+    // entries (forbidden by §20.2) and let `session_start_` proceed.
+    #[cfg(feature = "controlled-only")]
+    {
+        let _ = (
+            session_id,
+            id,
+            is_file_transfer,
+            is_view_camera,
+            is_port_forward,
+            is_rdp,
+            is_terminal,
+            switch_uuid,
+            force_relay,
+            password,
+            is_shared_password,
+            conn_token,
+        );
+        log::warn!(
+            "vhd_bridge: refused flutter::session_add in controlled-only build"
+        );
+        bail!("controlled-only build refuses to act as initiator");
+    }
+    #[cfg(not(feature = "controlled-only"))]
+    {
     let conn_type = if is_file_transfer {
         ConnType::FILE_TRANSFER
     } else if is_view_camera {
@@ -1371,6 +1415,7 @@ pub fn session_add(
     sessions::insert_session(session_id.to_owned(), conn_type, session.clone());
 
     Ok(session)
+    }
 }
 
 /// start a session with the given id.
@@ -1384,6 +1429,23 @@ pub fn session_start_(
     id: &str,
     event_stream: StreamSink<EventToUI>,
 ) -> ResultType<()> {
+    // vhd-machine-auth-bridge §17.2 / Requirements 1.6, 20.1, 20.9:
+    // controlled-only refuses to spawn the per-session `io_loop`
+    // thread that ultimately drives `Client::start`. Without this
+    // guard, `try_send_close_event` and `event_stream` plumbing would
+    // still execute, but the `std::thread::spawn(move || io_loop(..))`
+    // call below is the actual initiator entry. We refuse early so
+    // the chokepoint at `Client::start` never even runs.
+    #[cfg(feature = "controlled-only")]
+    {
+        let _ = (session_id, id, event_stream);
+        log::warn!(
+            "vhd_bridge: refused flutter::session_start_ in controlled-only build"
+        );
+        bail!("controlled-only build refuses to act as initiator");
+    }
+    #[cfg(not(feature = "controlled-only"))]
+    {
     // is_connected is used to indicate whether to start a peer connection. For two cases:
     // 1. "Move tab to new window"
     // 2. multi ui session within the same peer connection.
@@ -1423,6 +1485,7 @@ pub fn session_start_(
         Ok(())
     } else {
         bail!("No session with peer id {}", id)
+    }
     }
 }
 

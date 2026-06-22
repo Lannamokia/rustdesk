@@ -1,0 +1,938 @@
+# Lannamokia/rustdesk fork — bespoke build pipeline
+# ==================================================
+#
+# Replaces the upstream multi-flavour CI matrix.  Two top-level deliverables:
+#
+#   1. RustDesk_Controller (Flutter)         — three platforms:
+#        · Windows x86_64 (debug-signed, portable layout)
+#        · Android   universal-apk           (default debug signing)
+#        · iOS       arm64                   (unsigned IPA)
+#
+#   2. RustDesk_Controlled with vhd-bridge   — single platform:
+#        · Windows x86_64 MSVC, --features vhd-bridge,controlled-only,hwcodec,vram
+#
+# Triggers: any push / PR / manual run.  No nightly cron, no auto-publish to
+# GitHub Releases — every artifact lands under the workflow run as a normal
+# Actions artifact (28-day retention).  Secrets injected by GitHub Actions:
+#
+#   · HBBS_KEY / HBBS_HOST / HBBR_HOST            — required by build.rs gate
+#                                                   on every flavour
+#   · VHD_BRIDGE_SECRET_HEX | VHD_BRIDGE_SECRET_B64 — required ONLY by the
+#                                                   controlled flavour
+#   · VHD_BRIDGE_SECRET_VERSION                   — optional, defaults to 1
+#
+# secret.sec / vhd_bridge_secret.bin are git-ignored and are NEVER materialised
+# on the runner — build.rs consumes the env vars directly.
+
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    # master always builds on push.  feature/vhd-machine-auth-bridge is
+    # listed here too so commits pushed to it run CI even when the
+    # corresponding PR is closed (or hasn't been opened yet).  When the
+    # PR is open, the same commit will also match `pull_request:
+    # synchronize` below; the `concurrency:` block beneath this `on:`
+    # cancels the older of the two runs so we don't pay for both.
+    branches:
+      - master
+      - feature/vhd-machine-auth-bridge
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+      - ".kiro/**"
+      - "machine-auth.md"
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+      - ".kiro/**"
+      - "machine-auth.md"
+
+# Cancel any still-running build when a new commit lands on the same ref.
+# Belt-and-braces against duplicate triggers and saves runner minutes when
+# pushing rapid fix-ups.
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # ------------------------------------------------------------------
+  # vcpkg GitHub Actions binary cache
+  # ------------------------------------------------------------------
+  # Tells vcpkg to upload / download per-port binary packages straight
+  # to the GitHub Actions cache backend ("x-gha").  Without this var,
+  # `lukka/run-vcpkg` falls back to caching the entire C:\vcpkg tree as
+  # one giant blob keyed on workflow file hashes — every yml edit blows
+  # the key and rebuilds libvpx/libyuv/opus/aom from scratch (~30 min).
+  # With "x-gha" each port keeps its own hash and is reused as long as
+  # the source recipe and triplet are unchanged, even if the workflow
+  # text drifts.
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+
+  # ------------------------------------------------------------------
+  # Toolchain pins
+  # ------------------------------------------------------------------
+  RUST_VERSION: "1.75"           # upstream-validated; matches sciter ABI
+  # Controlled (vhd-bridge) flavor doesn't use sciter, so we can run a newer
+  # rustc here.  Required for proptest 1.9 (used by smoke_2fa_disabled and
+  # the bridge property tests), which needs rustc >= 1.82.
+  CONTROLLED_RUST_VERSION: "1.82"
+  CARGO_NDK_VERSION: "3.1.2"
+  FLUTTER_VERSION: "3.24.5"      # desktop / iOS
+  ANDROID_FLUTTER_VERSION: "3.24.5"
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  CARGO_EXPAND_VERSION: "1.0.95"
+  LLVM_VERSION: "15.0.6"
+  NDK_VERSION: "r28c"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  VERSION: "1.4.6"
+  # ------------------------------------------------------------------
+  # Build_Prereq_Vars (Requirement 22) — required by build.rs on every job.
+  # Empty in PRs from outside the repo (GitHub elides secrets there); the
+  # gate stays lenient when no env is set, so PRs from forks still build.
+  # ------------------------------------------------------------------
+  HBBS_KEY: ${{ secrets.HBBS_KEY }}
+  HBBS_HOST: ${{ secrets.HBBS_HOST }}
+  HBBR_HOST: ${{ secrets.HBBR_HOST }}
+
+jobs:
+  # ====================================================================
+  # 0. flutter_rust_bridge codegen — produces generated_bridge.dart and
+  #    src/bridge_generated*.rs that every Flutter platform job consumes.
+  # ====================================================================
+  generate-bridge:
+    name: Generate flutter_rust_bridge
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Export GitHub Actions cache env (for vcpkg x-gha)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install OS prerequisites
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake curl gcc git g++ libclang-dev \
+            libgtk-3-dev llvm-dev nasm ninja-build pkg-config wget
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: bridge-codegen
+
+      - name: Cache flutter_rust_bridge intermediate output
+        uses: actions/cache@v3
+        with:
+          path: /tmp/flutter_rust_bridge
+          key: frb-${{ env.FLUTTER_RUST_BRIDGE_VERSION }}
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install codegen tools and run pub get
+        shell: bash
+        run: |
+          cargo install cargo-expand --version ${{ env.CARGO_EXPAND_VERSION }} --locked
+          cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features "uuid" --locked
+          # Discard committed lock and the two SDK-incompatible overrides.
+          # Local dev (Flutter 3.32+) needs `matcher: 0.12.19` / `test_api: 0.7.11`
+          # because its flutter_test SDK pins the same versions; the CI Flutter
+          # SDK (3.24.5) pins meta 1.15.0 and rejects test_api 0.7.11 outright.
+          # Without the overrides pub resolves matcher/test_api transitively.
+          rm -f flutter/pubspec.lock
+          # -i.bak form is the only invocation accepted by BOTH GNU sed (Linux runners)
+          # AND BSD sed (macOS runners).  Strip the .bak after.
+          sed -i.bak -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          rm -f flutter/pubspec.yaml.bak
+          pushd flutter
+          # The bridge codegen path inside upstream pinned an older extended_text
+          # to keep its analyzer happy.  Mirror that here.
+          sed -i -e 's/extended_text: 14.0.0/extended_text: 13.0.0/g' pubspec.yaml
+          flutter pub get
+          popd
+
+      - name: Run flutter_rust_bridge_codegen
+        run: |
+          ~/.cargo/bin/flutter_rust_bridge_codegen \
+            --rust-input ./src/flutter_ffi.rs \
+            --dart-output ./flutter/lib/generated_bridge.dart \
+            --c-output ./flutter/macos/Runner/bridge_generated.h
+          cp ./flutter/macos/Runner/bridge_generated.h ./flutter/ios/Runner/bridge_generated.h
+
+      - name: Upload bridge artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-artifact
+          path: |
+            ./src/bridge_generated.rs
+            ./src/bridge_generated.io.rs
+            ./flutter/lib/generated_bridge.dart
+            ./flutter/lib/generated_bridge.freezed.dart
+            ./flutter/macos/Runner/bridge_generated.h
+            ./flutter/ios/Runner/bridge_generated.h
+
+  # ====================================================================
+  # 0b. RustDeskTempTopMostWindow — third-party Win32 DLL that lets
+  #      the controller force the remote-session window topmost when
+  #      legacy applications fight back.  Compiled once per workflow,
+  #      consumed only by controller-windows.
+  # ====================================================================
+  topmost-window:
+    name: Build RustDeskTempTopMostWindow
+    uses: ./.github/workflows/_topmost.yml
+    with:
+      upload-artifact: true
+      target: windows-2022
+      configuration: Release
+      platform: x64
+      target_version: Windows10
+
+  # ====================================================================
+  # 1. RustDesk_Controller — Flutter, Windows x86_64
+  #    Default features (NO vhd-bridge / NO controlled-only).  Ships the
+  #    flutter desktop runner output as a directory artifact.  No code
+  #    signing — Windows accepts unsigned EXEs locally.
+  # ====================================================================
+  controller-windows:
+    name: Controller / Windows x86_64
+    needs: [generate-bridge, topmost-window]
+    runs-on: windows-2022
+    env:
+      VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+    steps:
+      - name: Export GitHub Actions cache env (for vcpkg x-gha)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Restore bridge artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2.12.0
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Replace engine with rustdesk custom flutter engine
+        shell: pwsh
+        run: |
+          flutter doctor -v
+          flutter precache --windows
+          Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
+          mv -Force windows-x64-release/* C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
+
+      - name: Patch Flutter (dropdown_menu_enableFilter)
+        shell: bash
+        run: |
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
+          cd $(dirname $(dirname $(which flutter)))
+          [[ "3.24.5" == "${{ env.FLUTTER_VERSION }}" ]] && git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Reset flutter/pubspec.lock and SDK-incompatible overrides
+        shell: bash
+        run: |
+          rm -f flutter/pubspec.lock
+          # Local Flutter 3.32+ flutter_test pins these; CI Flutter 3.24.5 pins
+          # meta 1.15.0 and rejects test_api 0.7.11 — drop the overrides so
+          # pub resolves matcher/test_api transitively from glados/test.
+          # -i.bak form is the only invocation accepted by BOTH GNU sed (Linux runners)
+          # AND BSD sed (macOS runners).  Strip the .bak after.
+          sed -i.bak -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          rm -f flutter/pubspec.yaml.bak
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: controller-windows
+          # Bring the Build_Prereq_Vars into the cache key so changing one of
+          # them invalidates the cached build-script output for hbb_common.
+          # Without this, the first build (run without secrets configured)
+          # produces a cache that subsequent builds (with secrets) reuse,
+          # silently keeping the upstream RS_PUB_KEY / rs-ny.rustdesk.com
+          # defaults inside the binary even though the env vars are present.
+          env-vars: "HBBS_KEY HBBS_HOST HBBR_HOST CARGO CC CFLAGS CXX CMAKE RUST"
+
+      - name: Setup vcpkg with GitHub Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        shell: bash
+        run: |
+          if ! $VCPKG_ROOT/vcpkg install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r f; do
+              echo "$f:"; cat "$f"; echo
+            done
+            exit 1
+          fi
+
+      - name: Build_Prereq_Vars sanity probe (presence-only)
+        shell: pwsh
+        run: |
+          # Confirms the workflow-level env block has propagated to this step.
+          # Does NOT echo any value — only "set/unset" + length, to avoid logs
+          # leaking secrets even when set-x is later enabled by accident.
+          $names = 'HBBS_KEY','HBBS_HOST','HBBR_HOST'
+          foreach ($n in $names) {
+            $v = [Environment]::GetEnvironmentVariable($n)
+            if ($null -eq $v -or $v.Length -eq 0) {
+              Write-Host "$n : <unset>"
+            } else {
+              Write-Host "$n : <set, length=$($v.Length)>"
+            }
+          }
+
+      - name: Build RustDesk (Flutter desktop, debug-signed)
+        shell: pwsh
+        env:
+          # Re-export at step scope so cargo (called via build.py -> os.system)
+          # cannot lose them.  GitHub propagates job-level env to every step's
+          # process environment, but explicit step env removes any ambiguity.
+          HBBS_KEY: ${{ env.HBBS_KEY }}
+          HBBS_HOST: ${{ env.HBBS_HOST }}
+          HBBR_HOST: ${{ env.HBBR_HOST }}
+        run: |
+          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
+          # Layout the runner output for upload — same as upstream's release path.
+          mv ./flutter/build/windows/x64/runner/Release ./rustdesk
+
+      - name: Bundle usbmmidd_v2 virtual-display driver
+        shell: pwsh
+        run: |
+          # Pulls the same Amyuni IDD package upstream installer ships.
+          # Powers the "create virtual display" feature when the controlled
+          # machine has no real monitor or wants extra screens for remote use.
+          Invoke-WebRequest `
+            -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip `
+            -OutFile usbmmidd_v2.zip
+          Expand-Archive -Path usbmmidd_v2.zip -DestinationPath .
+          # Drop 32-bit binaries we don't need on x86_64 builds.
+          Remove-Item -Path usbmmidd_v2\Win32 -Recurse -ErrorAction SilentlyContinue
+          # Drop installer scripts we never invoke (they require admin and
+          # would only fire from the MSI custom action anyway).
+          Remove-Item -Path `
+            "usbmmidd_v2\deviceinstaller64.exe",`
+            "usbmmidd_v2\deviceinstaller.exe",`
+            "usbmmidd_v2\usbmmidd.bat" `
+            -ErrorAction SilentlyContinue
+          Move-Item -Force .\usbmmidd_v2 .\rustdesk\
+
+      - name: Bundle RustDesk v4 printer driver (with sha256 verification)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          # Optional component — provides the "RustDesk Printer" virtual
+          # printer on the controlled machine that bridges print jobs back
+          # to the controller.  We continue-on-error so a transient hbb_common
+          # release outage doesn't kill the whole build; without these files
+          # rustdesk.exe just logs a warning at startup ("printer service
+          # init failed: Failed to load func init") and otherwise runs fine.
+          Invoke-WebRequest `
+            -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/rustdesk_printer_driver_v4-1.4.zip `
+            -OutFile rustdesk_printer_driver_v4-1.4.zip
+          Invoke-WebRequest `
+            -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/printer_driver_adapter.zip `
+            -OutFile printer_driver_adapter.zip
+          Invoke-WebRequest `
+            -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/sha256sums `
+            -OutFile sha256sums
+          $expected_driver  = (Select-String -Path .\sha256sums `
+              -Pattern '^([a-fA-F0-9]{64}) \*rustdesk_printer_driver_v4-1\.4\.zip$').Matches.Groups[1].Value
+          $actual_driver    = (Get-FileHash -Path rustdesk_printer_driver_v4-1.4.zip -Algorithm SHA256).Hash
+          $expected_adapter = (Select-String -Path .\sha256sums `
+              -Pattern '^([a-fA-F0-9]{64}) \*printer_driver_adapter\.zip$').Matches.Groups[1].Value
+          $actual_adapter   = (Get-FileHash -Path printer_driver_adapter.zip -Algorithm SHA256).Hash
+          if ($expected_driver -ieq $actual_driver) {
+            Expand-Archive -Path rustdesk_printer_driver_v4-1.4.zip -DestinationPath .
+            New-Item -ItemType Directory -Path .\rustdesk\drivers -ErrorAction SilentlyContinue | Out-Null
+            Move-Item -Force .\rustdesk_printer_driver_v4-1.4 .\rustdesk\drivers\RustDeskPrinterDriver
+            Write-Host "ok: bundled printer driver package"
+          } else {
+            Write-Host "::warning::printer driver checksum mismatch (expected=$expected_driver actual=$actual_driver), skipping"
+          }
+          if ($expected_adapter -ieq $actual_adapter) {
+            Expand-Archive -Path printer_driver_adapter.zip -DestinationPath .
+            Move-Item -Force .\printer_driver_adapter.dll .\rustdesk\
+            Write-Host "ok: bundled printer driver adapter dll"
+          } else {
+            Write-Host "::warning::printer driver adapter checksum mismatch (expected=$expected_adapter actual=$actual_adapter), skipping"
+          }
+
+      - name: Bundle TempTopMostWindow injection DLL
+        uses: actions/download-artifact@v4
+        with:
+          name: topmostwindow-artifacts
+          path: ./rustdesk/
+
+      - name: Verify Build_Prereq_Vars actually injected into binary
+        shell: pwsh
+        run: |
+          # Check whether the upstream-default RS_PUB_KEY fallback survives
+          # in the produced binary.  If it does, cargo:rustc-env injection
+          # never ran — likely because cargo reused a cached build script
+          # output, or env-var propagation broke somewhere.
+          $exe = "./rustdesk/rustdesk.exe"
+          $dll = "./rustdesk/librustdesk.dll"
+          if (-not (Test-Path $exe)) { Write-Error "rustdesk.exe missing"; exit 1 }
+          # The exe is a small Flutter shell; the real Rust code is in the DLL.
+          $bytes = if (Test-Path $dll) {
+            [System.IO.File]::ReadAllBytes($dll)
+          } else {
+            [System.IO.File]::ReadAllBytes($exe)
+          }
+          $upstream = 'OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw='
+          function Test-Ascii([byte[]]$b, [string]$t) {
+            $needle = [System.Text.Encoding]::ASCII.GetBytes($t)
+            for ($i = 0; $i -le $b.Length - $needle.Length; $i++) {
+              $match = $true
+              for ($j = 0; $j -lt $needle.Length; $j++) {
+                if ($b[$i+$j] -ne $needle[$j]) { $match = $false; break }
+              }
+              if ($match) { return $true }
+            }
+            return $false
+          }
+          $hasUpstream = Test-Ascii $bytes $upstream
+          # We deliberately do NOT search for the user's HBBS_HOST or
+          # HBBS_KEY here — that would echo a secret to logs.  Detecting
+          # the *absence* of the upstream fallback is a sound positive
+          # signal that injection worked.
+          if ($hasUpstream) {
+            Write-Host "::error::upstream RS_PUB_KEY default still present in built binary - build.rs injection did NOT happen on this run"
+            Write-Host "(Most likely cause: cargo reused a cached hbb_common build-script output. The 'rust-cache' step prefix-key is 'controller-windows' and its key is invalidated only when Cargo.lock changes.)"
+            exit 1
+          } else {
+            Write-Host "ok: upstream RS_PUB_KEY default absent from binary - injection appears to have run"
+          }
+
+      - name: Upload Controller Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-controller-windows-x86_64
+          path: rustdesk/
+          retention-days: 28
+
+  # ====================================================================
+  # 2. RustDesk_Controller — Flutter, Android universal-APK (debug-signed)
+  #    Default features (NO vhd-bridge).  apk uses the default debug
+  #    signingConfig (sed-injected for CI predictability).
+  # ====================================================================
+  controller-android:
+    name: Controller / Android universal-APK
+    needs: generate-bridge
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { rust: aarch64-linux-android, abi: arm64-v8a,    libdir: aarch64-linux-android, ndk: ndk_arm64.sh }
+          - { rust: armv7-linux-androideabi, abi: armeabi-v7a, libdir: arm-linux-androideabi, ndk: ndk_arm.sh }
+          - { rust: x86_64-linux-android,  abi: x86_64,       libdir: x86_64-linux-android,  ndk: ndk_x64.sh }
+    steps:
+      - name: Export GitHub Actions cache env (for vcpkg x-gha)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Restore bridge artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Install OS prerequisites
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake curl gcc-multilib git g++ g++-multilib \
+            libayatana-appindicator3-dev libasound2-dev libc6-dev libclang-dev \
+            libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libgtk-3-dev libpam0g-dev libpulse-dev libva-dev libxcb-randr0-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxdo-dev libxfixes-dev \
+            llvm-dev nasm ninja-build openjdk-17-jdk-headless pkg-config wget tree
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.ANDROID_FLUTTER_VERSION }}
+
+      - name: Patch Flutter (dropdown_menu_enableFilter)
+        run: |
+          cd $(dirname $(dirname $(which flutter)))
+          [[ "3.24.5" == "${{ env.ANDROID_FLUTTER_VERSION }}" ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Reset flutter/pubspec.lock and SDK-incompatible overrides
+        run: |
+          rm -f flutter/pubspec.lock
+          # -i.bak form is the only invocation accepted by BOTH GNU sed (Linux runners)
+          # AND BSD sed (macOS runners).  Strip the .bak after.
+          sed -i.bak -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          rm -f flutter/pubspec.yaml.bak
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          add-to-path: true
+
+      - name: Setup vcpkg with GitHub Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: /opt/artifacts/vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies for ${{ matrix.target.abi }}
+        run: |
+          ./flutter/build_android_deps.sh "${{ matrix.target.abi }}"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: controller-android-${{ matrix.target.abi }}
+          env-vars: "HBBS_KEY HBBS_HOST HBBR_HOST CARGO CC CFLAGS CXX CMAKE RUST"
+
+      - name: Build native library
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          rustup target add ${{ matrix.target.rust }}
+          cargo install cargo-ndk --version ${{ env.CARGO_NDK_VERSION }} --locked
+          ./flutter/${{ matrix.target.ndk }}
+          mkdir -p ./flutter/android/app/src/main/jniLibs/${{ matrix.target.abi }}
+          cp ./target/${{ matrix.target.rust }}/release/liblibrustdesk.so \
+             ./flutter/android/app/src/main/jniLibs/${{ matrix.target.abi }}/librustdesk.so
+
+      - name: Stage native library for joining job
+        uses: actions/upload-artifact@v4
+        with:
+          name: librustdesk-android-${{ matrix.target.abi }}
+          path: ./flutter/android/app/src/main/jniLibs/${{ matrix.target.abi }}/librustdesk.so
+          retention-days: 7
+
+  controller-android-apk:
+    name: Controller / Android APK assembly
+    needs: controller-android
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Export GitHub Actions cache env (for vcpkg x-gha)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Restore bridge artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Install OS prerequisites
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y openjdk-17-jdk-headless
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.ANDROID_FLUTTER_VERSION }}
+
+      - name: Patch Flutter (dropdown_menu_enableFilter)
+        run: |
+          cd $(dirname $(dirname $(which flutter)))
+          [[ "3.24.5" == "${{ env.ANDROID_FLUTTER_VERSION }}" ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Reset flutter/pubspec.lock and SDK-incompatible overrides
+        run: |
+          rm -f flutter/pubspec.lock
+          # -i.bak form is the only invocation accepted by BOTH GNU sed (Linux runners)
+          # AND BSD sed (macOS runners).  Strip the .bak after.
+          sed -i.bak -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          rm -f flutter/pubspec.yaml.bak
+
+      - name: Restore native libraries (all ABIs)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: librustdesk-android-*
+          path: ./flutter/android/app/src/main/jniLibs-staging
+
+      - name: Place per-ABI .so libraries
+        shell: bash
+        run: |
+          # download-artifact lays files out as
+          #   librustdesk-android-arm64-v8a/librustdesk.so
+          # Move each into jniLibs/<ABI>/.
+          for d in ./flutter/android/app/src/main/jniLibs-staging/librustdesk-android-*; do
+            abi="${d##*-android-}"
+            mkdir -p "./flutter/android/app/src/main/jniLibs/${abi}"
+            cp "${d}/librustdesk.so" "./flutter/android/app/src/main/jniLibs/${abi}/"
+          done
+          rm -rf ./flutter/android/app/src/main/jniLibs-staging
+          ls -R ./flutter/android/app/src/main/jniLibs
+
+      - name: Force debug signingConfig
+        shell: bash
+        run: |
+          # Use Flutter's default debug keystore (always present) so the apk
+          # is installable on dev devices without a release keystore secret.
+          sed -i "s/signingConfigs.release/signingConfigs.debug/g" ./flutter/android/app/build.gradle
+          sed -i "s/org.gradle.jvmargs=-Xmx1024M/org.gradle.jvmargs=-Xmx2g/g" ./flutter/android/gradle.properties
+
+      - name: Build universal APK
+        shell: bash
+        env:
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+        run: |
+          export PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:$PATH
+          pushd flutter
+          flutter build apk --debug --target-platform android-arm64,android-arm,android-x64
+          popd
+          mv flutter/build/app/outputs/flutter-apk/app-debug.apk \
+             rustdesk-${{ env.VERSION }}-debug-universal.apk
+
+      - name: Upload Controller Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-controller-android-debug
+          path: rustdesk-${{ env.VERSION }}-debug-universal.apk
+          retention-days: 28
+
+  # ====================================================================
+  # 3. RustDesk_Controller — iOS unsigned IPA (arm64)
+  # ====================================================================
+  controller-ios:
+    name: Controller / iOS unsigned IPA
+    needs: generate-bridge
+    runs-on: macos-latest
+    steps:
+      - name: Export GitHub Actions cache env (for vcpkg x-gha)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Restore bridge artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Install macOS prerequisites
+        run: brew install nasm yasm
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Patch Flutter (dropdown_menu_enableFilter)
+        run: |
+          cd $(dirname $(dirname $(which flutter)))
+          [[ "3.24.5" == "${{ env.FLUTTER_VERSION }}" ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Reset flutter/pubspec.lock and SDK-incompatible overrides
+        run: |
+          rm -f flutter/pubspec.lock
+          # -i.bak form is the only invocation accepted by BOTH GNU sed (Linux runners)
+          # AND BSD sed (macOS runners).  Strip the .bak after.
+          sed -i.bak -e '/^  matcher: 0\.12\.19/d' -e '/^  test_api: 0\.7\.11/d' flutter/pubspec.yaml
+          rm -f flutter/pubspec.yaml.bak
+
+      - name: Setup vcpkg with GitHub Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies (arm64-ios)
+        shell: bash
+        run: |
+          if ! $VCPKG_ROOT/vcpkg install --triplet arm64-ios --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" -exec sh -c 'echo "$1:"; cat "$1"; echo' _ {} \;
+            exit 1
+          fi
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: aarch64-apple-ios
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: controller-ios
+          env-vars: "HBBS_KEY HBBS_HOST HBBR_HOST CARGO CC CFLAGS CXX CMAKE RUST"
+
+      - name: Build native library
+        run: |
+          rustup target add aarch64-apple-ios
+          cargo build --features flutter,hwcodec --release --target aarch64-apple-ios --lib
+
+      - name: Build unsigned IPA
+        shell: bash
+        run: |
+          pushd flutter
+          flutter build ipa --release --no-codesign
+          popd
+
+      - name: Locate IPA
+        id: locate-ipa
+        shell: bash
+        run: |
+          # `flutter build ipa --no-codesign` produces an .xcarchive but no .ipa
+          # file (no signing => no `xcodebuild -exportArchive`).  Package the
+          # .app from the archive into an unsigned .ipa manually.
+          archive=$(find flutter/build/ios/archive -maxdepth 2 -type d -name '*.xcarchive' | head -n 1)
+          if [ -z "$archive" ]; then
+            echo "::error::No .xcarchive produced by flutter build ipa"
+            ls -R flutter/build/ios || true
+            exit 1
+          fi
+          app_path="${archive}/Products/Applications"
+          mkdir -p ipa-staging/Payload
+          cp -R "${app_path}"/*.app ipa-staging/Payload/
+          pushd ipa-staging
+          zip -qr "../rustdesk-${{ env.VERSION }}-unsigned.ipa" Payload
+          popd
+          rm -rf ipa-staging
+          echo "ipa_path=rustdesk-${{ env.VERSION }}-unsigned.ipa" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Controller iOS unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-controller-ios-unsigned
+          path: ${{ steps.locate-ipa.outputs.ipa_path }}
+          retention-days: 28
+
+  # ====================================================================
+  # 4. RustDesk_Controlled — vhd-bridge + controlled-only (Windows MSVC)
+  #    Hard pinned to Windows x86_64 per Requirement §3 (the bridge spec
+  #    forbids Linux / macOS / Android / iOS controlled artifacts).  The
+  #    controlled flavor is a cargo --bin build, NOT a Flutter desktop
+  #    bundle: the Maintenance_Overlay UI is exercised only by Flutter
+  #    widget tests, and the production Controlled binary doesn't need
+  #    a runner exe at this point.
+  # ====================================================================
+  controlled-windows:
+    name: Controlled / Windows + vhd-bridge
+    runs-on: windows-2022
+    steps:
+      - name: Export GitHub Actions cache env (for vcpkg x-gha)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Inject secrets into $GITHUB_ENV individually, only when the repo secret
+      # is actually populated.  An unset GitHub-Actions secret expands to an
+      # empty string in `${{ secrets.X }}`, and `std::env::var().ok()` in
+      # build.rs treats `Some("")` as "set".  resolve_shared_secret then sees
+      # *both* HEX and B64 as present and rejects the build with a "mutually
+      # exclusive" error.  Setting only what's truly there keeps the
+      # build-script's priority order (HEX > B64 > .bin > secret.sec) honest.
+      - name: Inject vhd-bridge build secrets
+        shell: bash
+        env:
+          IN_HEX: ${{ secrets.VHD_BRIDGE_SECRET_HEX }}
+          IN_B64: ${{ secrets.VHD_BRIDGE_SECRET_B64 }}
+          IN_VER: ${{ secrets.VHD_BRIDGE_SECRET_VERSION }}
+        run: |
+          if [ -n "${IN_HEX:-}" ]; then
+            echo "VHD_BRIDGE_SECRET_HEX=${IN_HEX}" >> "$GITHUB_ENV"
+            echo "secret source: hex"
+          elif [ -n "${IN_B64:-}" ]; then
+            echo "VHD_BRIDGE_SECRET_B64=${IN_B64}" >> "$GITHUB_ENV"
+            echo "secret source: b64"
+          else
+            echo "::warning::No VHD_BRIDGE_SECRET_HEX or _B64 secret set — build.rs will fall back to lenient mode."
+          fi
+          if [ -n "${IN_VER:-}" ]; then
+            echo "VHD_BRIDGE_SECRET_VERSION=${IN_VER}" >> "$GITHUB_ENV"
+          fi
+          if [ -z "${HBBS_KEY:-}" ] || [ -z "${HBBS_HOST:-}" ] || [ -z "${HBBR_HOST:-}" ]; then
+            echo "::warning::Build_Prereq_Vars (HBBS_KEY/HOST, HBBR_HOST) not all set — build.rs gate will stay lenient."
+          fi
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.CONTROLLED_RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: controlled-windows
+          env-vars: "HBBS_KEY HBBS_HOST HBBR_HOST VHD_BRIDGE_SECRET_HEX VHD_BRIDGE_SECRET_B64 VHD_BRIDGE_SECRET_VERSION CARGO CC CFLAGS CXX CMAKE RUST"
+
+      - name: Setup vcpkg with GitHub Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        shell: bash
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        run: |
+          if ! $VCPKG_ROOT/vcpkg install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r f; do
+              echo "$f:"; cat "$f"; echo
+            done
+            exit 1
+          fi
+
+      - name: cargo check --lib (vhd-bridge,controlled-only,hwcodec,vram)
+        shell: bash
+        run: |
+          cargo check --locked --lib \
+            --target x86_64-pc-windows-msvc \
+            --features vhd-bridge,controlled-only,hwcodec,vram
+
+      - name: cargo test --lib (vhd-bridge,controlled-only,hwcodec,vram)
+        shell: bash
+        run: |
+          cargo test --locked --lib \
+            --target x86_64-pc-windows-msvc \
+            --features vhd-bridge,controlled-only,hwcodec,vram
+
+      - name: cargo test --test smoke_2fa_disabled
+        shell: bash
+        run: |
+          cargo test --locked \
+            --target x86_64-pc-windows-msvc \
+            --features vhd-bridge,controlled-only,hwcodec,vram \
+            --test smoke_2fa_disabled
+
+      - name: cargo test --test feature_off_parity
+        shell: bash
+        run: |
+          # feature_off_parity must hold without any bridge feature enabled.
+          cargo test --locked \
+            --target x86_64-pc-windows-msvc \
+            --test feature_off_parity
+
+      - name: cargo build --bin rustdesk (release, vhd-bridge,controlled-only,hwcodec,vram)
+        shell: bash
+        run: |
+          cargo build --release --locked --bin rustdesk \
+            --target x86_64-pc-windows-msvc \
+            --features vhd-bridge,controlled-only,hwcodec,vram
+
+      - name: Bridge token / secret leakage scanner
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File scripts/check_bridge_strings.ps1 `
+            -Flavor controlled `
+            -Target x86_64-pc-windows-msvc
+
+      - name: Behavioral smoke (controlled-only, --version + initiator-refusal)
+        shell: pwsh
+        run: |
+          $bin = "target/x86_64-pc-windows-msvc/release/rustdesk.exe"
+          if (-not (Test-Path $bin)) {
+            Write-Error "expected $bin after cargo build"; exit 1
+          }
+          # `--version` should expose the embedded vhd-bridge-secret-version line.
+          $verOut = & $bin --version 2>&1
+          if (-not ($verOut -match "vhd-bridge-secret-version=\d+")) {
+            Write-Warning "vhd-bridge-secret-version not present in --version output. (May be expected if no VHD_BRIDGE_SECRET_* secret was injected.)"
+          }
+          # Initiator subcommand should refuse — controlled-only strips it.
+          $exit = & $bin --connect 1 2>&1; $rc = $LASTEXITCODE
+          if ($rc -eq 0) {
+            Write-Error "controlled-only binary accepted --connect; controller paths were not stripped"
+            exit 1
+          }
+
+      - name: Upload Controlled Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-controlled-windows-x86_64
+          path: target/x86_64-pc-windows-msvc/release/rustdesk.exe
+          retention-days: 28

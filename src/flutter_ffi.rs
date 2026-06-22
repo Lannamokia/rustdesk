@@ -907,6 +907,19 @@ pub fn session_elevate_with_logon(session_id: SessionID, username: String, passw
 }
 
 pub fn session_switch_sides(session_id: SessionID) {
+    // vhd-machine-auth-bridge §17.2 / Requirements 1.6, 20.1, 20.7,
+    // 20.9: defense-in-depth alongside `Session::switch_sides`. The
+    // initiator UI is stripped per §17.6, but if a Flutter binding
+    // remained, this FFI entry would still be reachable; refuse.
+    #[cfg(feature = "controlled-only")]
+    {
+        let _ = session_id;
+        log::warn!(
+            "vhd_bridge: refused flutter_ffi::session_switch_sides in controlled-only build"
+        );
+        return;
+    }
+    #[cfg(not(feature = "controlled-only"))]
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         session.switch_sides();
     }

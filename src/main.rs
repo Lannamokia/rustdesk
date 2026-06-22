@@ -40,6 +40,12 @@ fn main() {
     }
     use clap::App;
     use hbb_common::log;
+    // vhd-machine-auth-bridge §17.1 / Requirement 1.6, 20.6:
+    // controlled-only 形态拒绝充当远控发起方。`--connect` / `--port-forward`
+    // 在 cli feature 路径下属于裁剪目标；`--server` 是受控侧入口，必须保留。
+    #[cfg(feature = "controlled-only")]
+    let args = format!("-s, --server=[] 'Start server'",);
+    #[cfg(not(feature = "controlled-only"))]
     let args = format!(
         "-p, --port-forward=[PORT-FORWARD-OPTIONS] 'Format: remote-id:local-port:remote-port[:remote-host]'
         -c, --connect=[REMOTE_ID] 'test only'
@@ -54,6 +60,7 @@ fn main() {
         .get_matches();
     use hbb_common::{config::LocalConfig, env_logger::*};
     init_from_env(Env::default().filter_or(DEFAULT_FILTER_ENV, "info"));
+    #[cfg(not(feature = "controlled-only"))]
     if let Some(p) = matches.value_of("port-forward") {
         let options: Vec<String> = p.split(":").map(|x| x.to_owned()).collect();
         if options.len() < 3 {
@@ -97,6 +104,11 @@ fn main() {
         let token = LocalConfig::get_option("access_token");
         cli::connect_test(p, key, token);
     } else if let Some(p) = matches.value_of("server") {
+        log::info!("id={}", hbb_common::config::Config::get_id());
+        crate::start_server(true, false);
+    }
+    #[cfg(feature = "controlled-only")]
+    if matches.value_of("server").is_some() {
         log::info!("id={}", hbb_common::config::Config::get_id());
         crate::start_server(true, false);
     }

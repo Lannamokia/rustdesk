@@ -1510,14 +1510,15 @@ fn get_after_install(
         })
         .unwrap_or_default();
 
-    format!("
-    chcp 65001
-    reg add HKEY_CLASSES_ROOT\\.{ext} /f
-    {desktop_shortcuts}
-    {start_menu_shortcuts}
-    {reg_printer}
-    reg add HKEY_CLASSES_ROOT\\.{ext}\\DefaultIcon /f
-    reg add HKEY_CLASSES_ROOT\\.{ext}\\DefaultIcon /f /ve /t REG_SZ  /d \"\\\"{exe}\\\",0\"
+    // vhd-machine-auth-bridge §17.1 / Requirement 1.6, 20.6:
+    // controlled-only 形态下 RustDesk 不再充当远控发起方，因此安装阶段
+    // SHALL NOT 注册 `rustdesk:` URL Protocol 与 `.rustdesk` 文件关联
+    // 触发的 `--play` 入口；这两段注册指向 `rustdesk.exe %1` /
+    // `rustdesk.exe --play %1`，是发起方 CLI 的可执行表面。其它注册
+    // （DefaultIcon / 安装快捷方式标记）保留。
+    #[cfg(not(feature = "controlled-only"))]
+    let initiator_uri_reg = format!(
+        "
     reg add HKEY_CLASSES_ROOT\\.{ext}\\shell /f
     reg add HKEY_CLASSES_ROOT\\.{ext}\\shell\\open /f
     reg add HKEY_CLASSES_ROOT\\.{ext}\\shell\\open\\command /f
@@ -1527,7 +1528,20 @@ fn get_after_install(
     reg add HKEY_CLASSES_ROOT\\{ext}\\shell /f
     reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open /f
     reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open\\command /f
-    reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{exe}\\\" \\\"%%1\\\"\"
+    reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{exe}\\\" \\\"%%1\\\"\""
+    );
+    #[cfg(feature = "controlled-only")]
+    let initiator_uri_reg = String::new();
+
+    format!("
+    chcp 65001
+    reg add HKEY_CLASSES_ROOT\\.{ext} /f
+    {desktop_shortcuts}
+    {start_menu_shortcuts}
+    {reg_printer}
+    reg add HKEY_CLASSES_ROOT\\.{ext}\\DefaultIcon /f
+    reg add HKEY_CLASSES_ROOT\\.{ext}\\DefaultIcon /f /ve /t REG_SZ  /d \"\\\"{exe}\\\",0\"
+    {initiator_uri_reg}
     netsh advfirewall firewall add rule name=\"{app_name} Service\" dir=out action=allow program=\"{exe}\" enable=yes
     netsh advfirewall firewall add rule name=\"{app_name} Service\" dir=in action=allow program=\"{exe}\" enable=yes
     {create_service}
@@ -3175,10 +3189,25 @@ pub fn install_service() -> bool {
     let filter = format!(" /FI \"PID ne {}\"", get_current_pid());
     Config::set_option("stop-service".into(), "".into());
     crate::ipc::EXIT_RECV_CLOSE.store(false, Ordering::Relaxed);
+    // Headless / single-file `--install-service`: GUI install_me() copies the whole
+    // parent dir, but here we only have a standalone exe, so make sure the target
+    // path exists and the running exe is staged at `exe` before `sc create` points
+    // its binPath there. Skip when source equals destination (re-install in place).
+    let src_exe = std::env::current_exe()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let copy_self = if src_exe.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "if not exist \"{path}\" md \"{path}\"\nif /I not \"{src_exe}\"==\"{exe}\" copy /Y \"{src_exe}\" \"{exe}\""
+        )
+    };
     let cmds = format!(
         "
 chcp 65001
 taskkill /F /IM {app_name}.exe{filter}
+{copy_self}
 cscript \"{tray_shortcut}\"
 copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
 {import_config}

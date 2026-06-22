@@ -587,6 +587,35 @@ pub async fn start_server(is_server: bool, no_server: bool) {
         hbb_common::platform::windows::start_cpu_performance_monitor();
     });
 
+    // vhd-machine-auth-bridge §14.1 / Requirements 4.3 / 13.2 / 13.3 / 18.4:
+    // bring the bridge worker up *inside* the ambient `#[tokio::main]`
+    // runtime, before any `RendezvousMediator` / IPC scaffolding runs,
+    // so that:
+    //   * the trigger queue + heartbeat ticker spin up before any
+    //     `Config::set_id` / `update_temporary_password` write fires
+    //     in this process (the hbb_common-side hooks themselves are
+    //     drop-on-unset and the `triggers::notify_*` entry points are
+    //     warn-drop-on-uninit, so the ordering only matters for the
+    //     first observed change);
+    //   * `install_log_sink()` overrides the global `log` registration
+    //     before a meaningful volume of bridge / server log lines is
+    //     produced. `flexi_logger` may have already grabbed the slot
+    //     via `hbb_common::init_log` upstream in `core_main`; in that
+    //     case `set_boxed_logger` returns `Err` and `log_sink::install`
+    //     silently falls through, which is the documented behaviour
+    //     (task 10.1 — the existing sink stays in place and the
+    //     bridge writer simply drains its empty ring buffer).
+    //
+    // Both calls are idempotent — the recursive `start_server(true|false)`
+    // re-entrancy in this fn (the `--server` retry path below) reaches
+    // them on every iteration; `OnceLock` guards inside both `start`
+    // and `log_sink::install` keep this single-spawn / single-install.
+    #[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+    {
+        crate::vhd_bridge::install_log_sink();
+        crate::vhd_bridge::start(&tokio::runtime::Handle::current());
+    }
+
     if is_server {
         crate::common::set_server_running(true);
         std::thread::spawn(move || {

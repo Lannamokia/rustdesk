@@ -1,152 +1,138 @@
 <p align="center">
-  <img src="../res/logo-header.svg" alt="RustDesk - Seu desktop remoto"><br>
-  <a href="#servidores-públicos-grátis">Servidores</a> •
-  <a href="#compilação-crua">Compilar</a> •
-  <a href="#como-compilar-com-docker">Docker</a> •
-  <a href="#estrutura-de-arquivos">Estrutura</a> •
-  <a href="#screenshots">Screenshots</a><br>
-  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-GR.md">Ελληνικά</a>]<br>
-  <b>Precisamos de sua ajuda para traduzir este README e a <a href="https://github.com/rustdesk/rustdesk/tree/master/src/lang">UI do RustDesk</a> para sua língua nativa</b>
+  <img src="../res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
+  <b>RustDesk &mdash; fork <code>Lannamokia</code> com a ponte de autenticação de máquina VHD</b><br>
+  <a href="#status-do-fork">Status do fork</a> &bull;
+  <a href="#o-que-este-fork-adiciona">Adições</a> &bull;
+  <a href="#compilação">Compilação</a> &bull;
+  <a href="#segredos-e-ci">Segredos &amp; CI</a> &bull;
+  <a href="#licença-e-atribuição">Licença</a><br>
+  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-DA.md">Dansk</a>] | [<a href="README-GR.md">Ελληνικά</a>] | [<a href="README-TR.md">Türkçe</a>] | [<a href="README-NO.md">Norsk</a>] | [<a href="README-RO.md">Română</a>]
 </p>
 
-Converse conosco: [Discord](https://discord.gg/nDceKgxnkV) | [Twitter](https://twitter.com/rustdesk) | [Reddit](https://www.reddit.com/r/rustdesk) | [YouTube](https://www.youtube.com/@rustdesk)
+> [!Important]
+> Este repositório é um fork descendente de [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk). Documentação inglesa completa: [`../README.md`](../README.md).
+> Direitos autorais, marcas e licença AGPL-3.0 do upstream permanecem inalterados &mdash; ver [Licença e atribuição](#licença-e-atribuição).
 
-[![RustDesk Server Pro](https://img.shields.io/badge/RustDesk%20Server%20Pro-Recursos%20Avan%C3%A7ados-blue)](https://rustdesk.com/pricing.html)
+> [!Caution]
+> **Aviso sobre uso indevido:** os desenvolvedores upstream do RustDesk e os mantenedores deste fork não toleram nem apoiam qualquer uso antiético ou ilegal deste software. Acesso, controle ou invasão de privacidade não autorizados são estritamente proibidos. Os autores não se responsabilizam por uso indevido.
 
-Mais um software de desktop remoto, escrito em Rust. Funciona por padrão, sem necessidade de configuração. Você tem completo controle de seus dados, sem se preocupar com segurança. Você pode usar nossos servidores de rendezvous/relay, [configurar seu próprio](https://rustdesk.com/server), ou [escrever seu próprio servidor de rendezvous/relay](https://github.com/rustdesk/rustdesk-server-demo).
+---
 
-RustDesk acolhe contribuições de todos. Leia [`docs/CONTRIBUTING.md`](CONTRIBUTING.md) para ver como começar.
+## Status do fork
 
-[**DOWNLOAD DE BINÁRIOS**](https://github.com/rustdesk/rustdesk/releases)
+| | |
+|---|---|
+| **Upstream** | [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk) (configurado como remote `upstream` no git) |
+| **Este fork** | [`Lannamokia/rustdesk`](https://github.com/Lannamokia/rustdesk) |
+| **Branch ativo** | `feature/vhd-machine-auth-bridge` |
+| **Submódulo** | `libs/hbb_common` &rarr; [`Lannamokia/hbb_common`](https://github.com/Lannamokia/hbb_common), mesmo branch |
+| **Licença** | AGPL-3.0 (sem mudanças em relação ao upstream &mdash; ver [`LICENCE`](../LICENCE)) |
+| **Objetivo** | Rodar o lado controlado do RustDesk como sidecar do agente externo VHDMount, através de uma ponte autenticada e fixada à máquina. |
 
-## Dependências
+Quando `vhd-bridge` está **desativado**, o artefato compilado é equivalente em comportamento ao RustDesk upstream &mdash; invariante verificado automaticamente por `tests/feature_off_parity.rs`.
 
-Versões de desktop utilizam [sciter](https://sciter.com/) para a GUI, por favor baixe a biblioteca dinâmica sciter por conta própria.
+## O que este fork adiciona
 
-[Windows](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.win/x64/sciter.dll) |
-[Linux](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so) |
-[MacOS](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.osx/libsciter.dylib)
+Um subsistema coeso &mdash; a **ponte de autenticação de máquina VHD** &mdash; controlado por duas features Cargo, **desativadas por padrão**:
 
-## Compilação crua
+- **`vhd-bridge`** &mdash; compila o worker da ponte, fiação IPC, overlay UI de manutenção e testes smoke.
+- **`controlled-only`** &mdash; remove UI/caminhos de código do Controller (initiator) para gerar um binário só-controlado; combinado com `vhd-bridge` para a build sidecar de produção.
 
-- Prepare seu ambiente de desenvolvimento Rust e ambiente de compilação C++
+Sem nenhuma feature ativa, `cargo run` e o fluxo upstream funcionam identicamente.
 
-- Instale [vcpkg](https://github.com/microsoft/vcpkg), e configure a variável de ambiente `VCPKG_ROOT` corretamente
+### Principais mudanças
 
-  - Windows: vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
-  - Linux/MacOS: vcpkg install libvpx libyuv opus aom
+- **`src/vhd_bridge/`** &ndash; worker de named pipe, máquina de estados `Identify &rarr; Authenticate &rarr; PeerSet &rarr; Heartbeat &rarr; Approval`, HMAC-SHA256 com segredo de 32 bytes injetado em build time, backoff de reconexão, observabilidade estruturada, log sink que oculta segredos.
+- **`src/server/connection.rs`** &ndash; gate de aprovação: antes de aceitar peer de entrada, consulta o conjunto de peers de autenticação de máquina mantido pela ponte.
+- **`src/auth_2fa.rs`** &ndash; 2FA forçado a OFF enquanto a ponte governa autenticação (verificado por `tests/smoke_2fa_disabled.rs`).
+- **`flutter/lib/desktop/widgets/maintenance_overlay.dart`** &ndash; overlay refletindo estado da ponte (`active / starting / lost`).
+- **`libs/build_support/`** &ndash; crate auxiliar compartilhada por `build.rs` e CI: gate rigoroso de pré-requisitos, parser tolerante para `secret.sec`, teste de coerência com a doc do protocolo.
+- **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; referência do protocolo de fio.
+- **`scripts/check_bridge_strings.ps1`** &ndash; scanner pós-build que garante que bytes em claro de `HBBS Key` / `VHDMount Key` não vazem nos artefatos.
+- **`.github/workflows/build.yml`** &mdash; workflow CI multiplataforma; os jobs Windows-chave são **controller-windows** (bundle Flutter desktop, features padrão + `hwcodec` + `vram` + `flutter`, sem bridge) e **controlled-windows** (sidecar controlado, `--features vhd-bridge,controlled-only,hwcodec,vram`); executa também os scripts de vazamento + smoke.
 
-- Execute `cargo run`
+Especificação completa em [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
-## Como compilar no Linux
+## Clonar
 
-### Ubuntu 18 (Debian 10)
-
-```sh
-sudo apt install -y g++ gcc git curl wget nasm yasm libgtk-3-dev clang libxcb-randr0-dev libxdo-dev libxfixes-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libpulse-dev cmake
-```
-
-### Fedora 28 (CentOS 8)
-
-```sh
-sudo yum -y install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libxdo-devel libXfixes-devel pulseaudio-libs-devel cmake alsa-lib-devel
-```
-
-### Arch (Manjaro)
-
-```sh
-sudo pacman -Syu --needed unzip git cmake gcc curl wget yasm nasm zip make pkg-config clang gtk3 xdotool libxcb libxfixes alsa-lib pipewire
-```
-
-### Instale vcpkg
+O fork modifica a URL do submódulo `libs/hbb_common`; clone recursivamente:
 
 ```sh
-git clone https://github.com/microsoft/vcpkg
-cd vcpkg
-git checkout 2023.04.15
-cd ..
-vcpkg/bootstrap-vcpkg.sh
-export VCPKG_ROOT=$HOME/vcpkg
-vcpkg/vcpkg install libvpx libyuv opus aom
-```
-
-### Conserte libvpx (Para o Fedora)
-
-```sh
-cd vcpkg/buildtrees/libvpx/src
-cd *
-./configure
-sed -i 's/CFLAGS+=-I/CFLAGS+=-fPIC -I/g' Makefile
-sed -i 's/CXXFLAGS+=-I/CXXFLAGS+=-fPIC -I/g' Makefile
-make
-cp libvpx.a $HOME/vcpkg/installed/x64-linux/lib/
-cd
-```
-
-### Compile
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-git clone https://github.com/rustdesk/rustdesk
+git clone --recursive https://github.com/Lannamokia/rustdesk.git
 cd rustdesk
-mkdir -p target/debug
-wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
-mv libsciter-gtk.so target/debug
-VCPKG_ROOT=$HOME/vcpkg cargo run
+git checkout feature/vhd-machine-auth-bridge
+git submodule update --init --recursive
 ```
 
-## Como compilar com Docker
+Se já clonou com o `.gitmodules` upstream: `git submodule sync && git submodule update --init --recursive`.
 
-Comece clonando o repositório e montando o container docker:
+## Compilação
+
+### Build upstream (sem ponte)
+
+Sem features ativas, o fork é um superconjunto estrito do upstream; as instruções upstream se aplicam sem mudanças. Dependências e comandos completos em [`../README.md`](../README.md).
+
+### Build com ponte (Windows MSVC, recomendado)
+
+A ponte só suporta Windows no momento (transporte named pipe e agente VHDMount).
+
+Ambiente exigido:
+
+```text
+VCPKG_ROOT             = C:\src\vcpkg
+VCPKG_DEFAULT_TRIPLET  = x64-windows-static
+VCPKGRS_DYNAMIC        = 0
+LIBCLANG_PATH          = <caminho para LLVM\x64\bin>
+```
+
+Em seguida, preencha `secret.sec` (dev-only) ou defina as variáveis equivalentes, então:
 
 ```sh
-git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
-docker build -t "rustdesk-builder" .
+# Build sidecar de produção (ponte ON, controlador removido)
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+
+# Apenas ponte (UI do controlador mantida para iteração de dev)
+cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ```
 
-Então, sempre que precisar compilar a aplicação, execute este comando:
+### Verificação
 
 ```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test feature_off_parity
+cargo test  -p build_support
 ```
 
-Note que a primeira compilação pode demorar mais antes que as dependências sejam armazenadas em cache, as compilações subsequentes serão mais rápidas. Adicionalmente, se você precisar especificar argumentos diferentes para o comando de compilação, você pode fazê-lo ao final do comando na posição do `<OPTIONAL-ARGS>`. Por exemplo, se você gostaria de compilar uma versão de release otimizada, você executaria o comando acima seguido de `--release`. O executável gerado estará disponível no diretório alvo no seu sistema, e pode ser executado com:
+Última execução neste branch: 0 erros / 189 unit / 6 + 8 integração / 38 + 4 build_support.
 
-```sh
-target/debug/rustdesk
-```
+## Segredos e CI
 
-Ou, se estiver rodando um executável de release:
+A ponte exige cinco entradas em build time:
 
-```sh
-target/release/rustdesk
-```
+| Variável | Papel | Formato |
+|---|---|---|
+| `HBBS_KEY` | Chave pública do rendezvous server (sobrescreve `RS_PUB_KEY`) | base64, 32 bytes após decode |
+| `HBBS_HOST` | Host do rendezvous server | `host[:port[-port2]]` |
+| `HBBR_HOST` | Host do relay server | `host[:port]` |
+| `VHD_BRIDGE_SECRET_HEX` (ou `_B64`) | Segredo compartilhado HMAC de 32 bytes | 64 hex / 44 base64 |
+| `VHD_BRIDGE_SECRET_VERSION` | Versão monotônica de rotação de chave | inteiro não negativo |
 
-Por favor verifique que está executando estes comandos da raiz do repositório do RustDesk, senão a aplicação pode não encontrar os recursos necessários. Note também que outros subcomandos do cargo como `install` ou `run` não são suportados atualmente via este método, já que eles iriam instalar ou rodar o programa dentro do container ao invés do host.
+Dois caminhos:
 
-## Estrutura de arquivos
+1. **Dev local** &mdash; preencher `secret.sec` na raiz com `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. Ignorado por [`.gitignore`](../.gitignore).
+2. **CI** &mdash; configurar os mesmos nomes como repository secrets do GitHub Actions; [`.github/workflows/build.yml`](../.github/workflows/build.yml) os injeta como variáveis mascaradas. **`secret.sec` nunca é materializado nos runners**.
 
-- **[libs/hbb_common](https://github.com/rustdesk/rustdesk/tree/master/libs/hbb_common)**: codec de vídeo, configurações, wrapper de tcp/udp, protobuf, funções de sistema de arquivos para transferência de arquivos, e outras funções utilitárias
-- **[libs/scrap](https://github.com/rustdesk/rustdesk/tree/master/libs/scrap)**: captura de tela
-- **[libs/enigo](https://github.com/rustdesk/rustdesk/tree/master/libs/enigo)**: controle de teclado/mouse específico a cada plataforma
-- **[src/ui](https://github.com/rustdesk/rustdesk/tree/master/src/ui)**: GUI
-- **[src/server](https://github.com/rustdesk/rustdesk/tree/master/src/server)**: serviços de áudio/área de transferência/entrada/vídeo, e conexões de rede
-- **[src/client.rs](https://github.com/rustdesk/rustdesk/tree/master/src/client.rs)**: iniciar uma conexão "peer to peer"
-- **[src/rendezvous_mediator.rs](https://github.com/rustdesk/rustdesk/tree/master/src/rendezvous_mediator.rs)**: Comunicação com [rustdesk-server](https://github.com/rustdesk/rustdesk-server), aguardar pela conexão remota direta (TCP hole punching) ou conexão indireta (relayed)
-- **[src/platform](https://github.com/rustdesk/rustdesk/tree/master/src/platform)**: código específico a cada plataforma
+`secret.sec` e `vhd_bridge_secret.bin` estão em `.gitignore` e **não devem ser commitados**. `scripts/check_bridge_strings.ps1` é a rede de segurança pós-build.
 
-> [!Cuidadob]
-> **Aviso de uso indevido:** <br>
-> Os desenvolvedores do RustDesk não aprovam nem apoiam qualquer uso antiético ou ilegal deste software. O uso indevido, como acesso não autorizado, controle ou invasão de privacidade, é estritamente contra nossas diretrizes. Os autores não são responsáveis por qualquer uso indevido da aplicação.
+## Licença e atribuição
 
-## Screenshots
+Este fork é distribuído sob a mesma licença que o upstream: **GNU Affero General Public License v3.0 (AGPL-3.0)**. Texto completo em [`../LICENCE`](../LICENCE); este fork **não modifica** a licença.
 
-![image](https://user-images.githubusercontent.com/71636191/113112362-ae4deb80-923b-11eb-957d-ff88daad4f06.png)
+- Todos os direitos autorais sobre o código upstream do RustDesk pertencem aos autores e contribuidores upstream, ver <https://github.com/rustdesk/rustdesk>.
+- As modificações deste fork (features `vhd-bridge` / `controlled-only` e código de suporte) também são distribuídas sob AGPL-3.0; usuários downstream retêm todos os direitos concedidos pela AGPL-3.0, incluindo direito ao código fonte correspondente em qualquer implantação em rede.
+- O nome e o logotipo "RustDesk" pertencem ao projeto upstream; este fork os usa apenas para identificar a base de código modificada, em conformidade com o uso justo de marcas em forks de software livre.
+- Bibliotecas de terceiros (vcpkg: `libvpx`, `libyuv`, `opus`, `aom`; SDK Sciter; dependências Flutter) mantêm suas licenças originais.
 
-![image](https://user-images.githubusercontent.com/71636191/113112619-f705a480-923b-11eb-911d-97e984ef52b6.png)
-
-![image](https://user-images.githubusercontent.com/71636191/113112857-3fbd5d80-923c-11eb-9836-768325faf906.png)
-
-![image](https://user-images.githubusercontent.com/71636191/135385039-38fdbd72-379a-422d-b97f-33df71fb1cec.png)
+Usar este fork implica aceitar a AGPL-3.0 e o **aviso sobre uso indevido** no topo deste arquivo.

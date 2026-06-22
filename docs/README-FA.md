@@ -1,159 +1,138 @@
-<p dir="rtl" align="center">
+<p align="center">
   <img src="../res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
-  <a href="#تصاویر-محیط-نرم افزار">تصاویر محیط نرم‌افزار</a> •
-  <a href="#ساختار-پوشه-ها">ساختار</a> •
-  <a href="#نحوه-ساخت-با-داکر">داکر</a> •
-  <a href="#ساخت">ساخت</a> •
-  <a href="#سرورهای-عمومی-رایگان">سرور</a>
+  <b>RustDesk &mdash; فورک <code>Lannamokia</code> با پل احراز هویت ماشین VHD</b><br>
+  <a href="#وضعیت-فورک">وضعیت فورک</a> &bull;
+  <a href="#این-فورک-چه-چیزی-اضافه-می‌کند">افزوده‌ها</a> &bull;
+  <a href="#کامپایل">کامپایل</a> &bull;
+  <a href="#اسرار-و-ci">اسرار &amp; CI</a> &bull;
+  <a href="#مجوز-و-انتساب">مجوز</a><br>
+  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-DA.md">Dansk</a>] | [<a href="README-GR.md">Ελληνικά</a>] | [<a href="README-TR.md">Türkçe</a>] | [<a href="README-NO.md">Norsk</a>] | [<a href="README-RO.md">Română</a>]
 </p>
-<p align="center" dir="auto">[<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-ID.md">Indonesian</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-GR.md">Ελληνικά</a>]</p>
-<p dir="rtl" align="center"><b>برای ترجمه این سند (README)، <a href="https://github.com/rustdesk/rustdesk/tree/master/src/lang" dir="rtl">رابط کاربری RustDesk</a>، <a href="https://github.com/rustdesk/doc.rustdesk.com" dir="rtl">و مستندات آن</a> به زبان مادری شما به کمکتان نیازمندیم. </b></p>
 
-با ما گفتگو کنید:  [Reddit](https://www.reddit.com/r/rustdesk) | [Twitter](https://twitter.com/rustdesk) | [Discord](https://discord.gg/nDceKgxnkV) | [YouTube](https://www.youtube.com/@rustdesk) 
+> [!Important]
+> این مخزن یک فورک پایین‌دستی از [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk) است. مستندات کامل انگلیسی: [`../README.md`](../README.md).
+> حق تکثیر، نشان‌های تجاری و مجوز AGPL-3.0 بالادست بدون تغییر باقی می‌ماند &mdash; به [مجوز و انتساب](#مجوز-و-انتساب) مراجعه کنید.
 
+> [!Caution]
+> **سلب مسئولیت در برابر سوءاستفاده:** توسعه‌دهندگان بالادست RustDesk و نگهدارندگان این فورک هیچ‌گونه استفاده غیراخلاقی یا غیرقانونی از این نرم‌افزار را تأیید یا پشتیبانی نمی‌کنند. دسترسی، کنترل یا تجاوز به حریم خصوصی بدون اجازه اکیداً ممنوع است. نویسندگان مسئولیتی در قبال سوءاستفاده ندارند.
 
-[![RustDesk Server Pro](https://img.shields.io/badge/RustDesk%20Server%20Pro-%D9%88%DB%8C%DA%98%DA%AF%DB%8C%E2%80%8C%D9%87%D8%A7%DB%8C%20%D9%BE%DB%8C%D8%B4%D8%B1%D9%81%D8%AA%D9%87-blue)](https://rustdesk.com/pricing.html)
+---
 
-راست‌دسک (RustDesk) نرم‌افزاری برای کارکردن با رایانه‌ی رومیزی از راه دور است و با زبان برنامه‌نویسی Rust نوشته شده است. نیاز به تنظیمات چندانی ندارد و شما را قادر می سازد تا بدون نگرانی از امنیت اطلاعات خود بر آن‌ها کنترل کامل داشته باشید.
+## وضعیت فورک
 
-می‌توانید از سرور rendezvous/relay ما استفاده کنید، [سرور خودتان را راه‌اندازی کنید](https://rustdesk.com/server) یا
-[ سرورrendezvous/relay  خود را بنویسید](https://github.com/rustdesk/rustdesk).
+| | |
+|---|---|
+| **بالادست** | [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk) (در git به‌عنوان remote `upstream`) |
+| **این فورک** | [`Lannamokia/rustdesk`](https://github.com/Lannamokia/rustdesk) |
+| **شاخه فعال** | `feature/vhd-machine-auth-bridge` |
+| **زیرماژول** | `libs/hbb_common` &rarr; [`Lannamokia/hbb_common`](https://github.com/Lannamokia/hbb_common)، همان شاخه |
+| **مجوز** | AGPL-3.0 (بدون تغییر نسبت به بالادست &mdash; به [`LICENCE`](../LICENCE) مراجعه کنید) |
+| **هدف** | اجرای سمت کنترل‌شونده RustDesk به‌صورت sidecar برای عامل خارجی VHDMount از طریق پلی احراز هویت‌شده و گره‌خورده به ماشین. |
 
-ما از مشارکت همه استقبال می کنیم. برای راهنمایی جهت مشارکت به[`docs/CONTRIBUTING.md`](CONTRIBUTING.md) مراجعه کنید.
+وقتی `vhd-bridge` **خاموش** است، اَرتیفکت ساخت رفتاراً معادل RustDesk بالادست است &mdash; این عدم تغییر را `tests/feature_off_parity.rs` به‌طور خودکار اعتبارسنجی می‌کند.
 
-[راست‌دسک چطور کار می کند؟](https://github.com/rustdesk/rustdesk/wiki/How-does-RustDesk-work%3F)
+## این فورک چه چیزی اضافه می‌کند
 
-[دریافت نرم‌افزار](https://github.com/rustdesk/rustdesk/releases)
+یک زیرسیستم منسجم &mdash; **پل احراز هویت ماشین VHD** &mdash; که با دو ویژگی Cargo کنترل می‌شود و **به‌طور پیش‌فرض خاموش** هستند:
 
-## وابستگی ها
+- **`vhd-bridge`** &mdash; کارگر پل، اتصال IPC، رویه نگه‌داری در UI و آزمون‌های smoke را در ساخت گنجانده می‌کند.
+- **`controlled-only`** &mdash; UI و مسیرهای کد Controller (initiator) را حذف می‌کند تا یک باینری فقط-قابل-کنترل تولید کند؛ همراه با `vhd-bridge` برای ساخت sidecar تولیدی استفاده می‌شود.
 
-نسخه‌های رومیزی از [sciter](https://sciter.com/) برای رابط کاربری گرافیکی استفاده می‌کنند. خواهشمندیم کتابخانه‌ی پویای sciter را خودتان دانلود کنید از این منابع دریافت کنید.
+بدون فعال بودن هیچ ویژگی، `cargo run` و جریان ساخت بالادست بدون تغییر کار می‌کنند.
 
-- [ویندوز](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.win/x64/sciter.dll)
-- [لینوکس](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so)
-- [مک](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.osx/libsciter.dylib)
+### تغییرات اصلی
 
-نسخه های همراه از Flutter استفاده می کنند. نسخه‌ی رومیزی را هم از Sciter به Flutter منتقل خواهیم کرد.
+- **`src/vhd_bridge/`** &ndash; کارگر named pipe، ماشین حالت `Identify &rarr; Authenticate &rarr; PeerSet &rarr; Heartbeat &rarr; Approval`، HMAC-SHA256 با راز مشترک ۳۲ بایتی تزریق‌شده در زمان ساخت، عقب‌نشینی اتصال مجدد، رصدپذیری ساختاریافته، log sink با حذف اسرار.
+- **`src/server/connection.rs`** &ndash; دروازه تأیید: پیش از پذیرش peer ورودی، مجموعه peer احراز هویت ماشین که پل نگه می‌دارد بررسی می‌شود.
+- **`src/auth_2fa.rs`** &ndash; 2FA تا زمانی که پل بر احراز هویت حاکم است به‌اجبار خاموش می‌شود (`tests/smoke_2fa_disabled.rs` تأیید می‌کند).
+- **`flutter/lib/desktop/widgets/maintenance_overlay.dart`** &ndash; overlay که وضعیت پل (`active / starting / lost`) را نمایش می‌دهد.
+- **`libs/build_support/`** &ndash; crate کمکی مشترک بین `build.rs` و CI: دروازه پیش‌نیاز سخت‌گیر، parser تساهل‌گر برای `secret.sec`، آزمون انسجام در برابر سند پروتکل.
+- **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; مرجع پروتکل سیمی.
+- **`scripts/check_bridge_strings.ps1`** &ndash; اسکنر نشت پس از ساخت: تضمین می‌کند بایت‌های پلِین‌تکست `HBBS Key` / `VHDMount Key` به آرتیفکت‌ها نشت نکنند.
+- **`.github/workflows/build.yml`** &mdash; جریان کاری CI چندسکویی؛ کارهای کلیدی Windows عبارت‌اند از **controller-windows** (بسته دسکتاپ Flutter، features پیش‌فرض + `hwcodec` + `vram` + `flutter`، بدون bridge) و **controlled-windows** (سایدکار controlled، `--features vhd-bridge,controlled-only,hwcodec,vram`)؛ اسکریپت‌های نشت و smoke را نیز اجرا می‌کند.
 
-## نیازمندی‌های ساخت
+مشخصات کامل در [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
-- محیط توسعه نرم افزار Rust و محیط ساخت ++C خود را آماده کنید
+## کلون
 
-- نرم افزار [vcpkg](https://github.com/microsoft/vcpkg) را نصب کنید و متغیر `VCPKG_ROOT` را به درستی تنظیم کنید.
-- بسته‌های vcpkg مورد نیاز را نصب کنید:
-  - ویندوز: `vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static`
-  - مک و لینوکس: `vcpkg install libvpx libyuv opus aom`
-- این دستور را اجرا کنید: `cargo run`
-
-## [ساخت](https://rustdesk.com/docs/en/dev/build/)
-
-## نحوه ساخت بر روی لینوکس
-
-### ساخت بر روی (Ubuntu 18 (Debian 10
-
-```sh
-sudo apt install -y g++ gcc git curl wget nasm yasm libgtk-3-dev clang libxcb-randr0-dev libxdo-dev libxfixes-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libpulse-dev cmake
-```
-
-### ساخت بر روی (Fedora 28 (CentOS 8
+فورک URL زیرماژول `libs/hbb_common` را تغییر می‌دهد؛ به‌صورت بازگشتی کلون کنید:
 
 ```sh
-sudo yum -y install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libxdo-devel libXfixes-devel pulseaudio-libs-devel cmake alsa-lib-devel
-```
-
-### ساخت بر روی (Arch (Manjaro
-
-```sh
-sudo pacman -Syu --needed unzip git cmake gcc curl wget yasm nasm zip make pkg-config clang gtk3 xdotool libxcb libxfixes alsa-lib pipewire
-```
-
-### نرم افزار vcpkg را نصب کنید
-
-```sh
-git clone https://github.com/microsoft/vcpkg
-cd vcpkg
-git checkout 2023.04.15
-cd ..
-vcpkg/bootstrap-vcpkg.sh
-export VCPKG_ROOT=$HOME/vcpkg
-vcpkg/vcpkg install libvpx libyuv opus aom
-```
-
-### رفع ایراد libvpx (برای فدورا)
-
-```sh
-cd vcpkg/buildtrees/libvpx/src
-cd *
-./configure
-sed -i 's/CFLAGS+=-I/CFLAGS+=-fPIC -I/g' Makefile
-sed -i 's/CXXFLAGS+=-I/CXXFLAGS+=-fPIC -I/g' Makefile
-make
-cp libvpx.a $HOME/vcpkg/installed/x64-linux/lib/
-cd
-```
-
-### ساخت
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-git clone https://github.com/rustdesk/rustdesk
+git clone --recursive https://github.com/Lannamokia/rustdesk.git
 cd rustdesk
-mkdir -p target/debug
-wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
-mv libsciter-gtk.so target/debug
-VCPKG_ROOT=$HOME/vcpkg cargo run
+git checkout feature/vhd-machine-auth-bridge
+git submodule update --init --recursive
 ```
 
-## نحوه ساخت با داکر
+اگر قبلاً با `.gitmodules` بالادست کلون کرده‌اید: `git submodule sync && git submodule update --init --recursive`.
 
-این مخزن Git را دریافت کنید و کانتینر را به روش زیر بسازید
+## کامپایل
+
+### ساخت بالادست (بدون پل)
+
+بدون فعال بودن ویژگی‌ها، فورک ابرمجموعه‌ای دقیق از بالادست است؛ دستورات بالادست بدون تغییر اعمال می‌شوند. وابستگی‌ها و فرامین کامل: [`../README.md`](../README.md).
+
+### ساخت با پل (Windows MSVC، توصیه‌شده)
+
+پل اکنون فقط Windows را پشتیبانی می‌کند (انتقال named pipe و عامل VHDMount).
+
+محیط لازم:
+
+```text
+VCPKG_ROOT             = C:\src\vcpkg
+VCPKG_DEFAULT_TRIPLET  = x64-windows-static
+VCPKGRS_DYNAMIC        = 0
+LIBCLANG_PATH          = <مسیر LLVM\x64\bin>
+```
+
+سپس `secret.sec` (مخصوص توسعه) را پر کنید یا متغیرهای محیطی متناظر را تنظیم کنید، سپس:
 
 ```sh
-git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
-docker build -t "rustdesk-builder" .
+# ساخت sidecar تولیدی (پل روشن، کنترلر حذف‌شده)
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+
+# فقط پل (UI کنترلر برای توسعه حفظ می‌شود)
+cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ```
 
-سپس، هر بار که نیاز به ساخت نرم‌افزار داشتید، دستور زیر را اجرا کنید:
+### اعتبارسنجی
 
 ```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test feature_off_parity
+cargo test  -p build_support
 ```
 
-توجه داشته باشید که نخستین ساخت ممکن است به دلیل محلی نبودن وابستگی‌ها بیشتر طول بکشد. اما دفعات بعدی سریعتر خواهند بود. علاوه بر این، اگر نیاز به تعیین آرگومان های مختلف برای دستور ساخت دارید، می توانید این کار را در انتهای دستور ساخت و از طریق `<OPTIONAL-ARGS>` انجام دهید. به عنوان مثال، اگر می خواهید یک نسخه نهایی بهینه سازی شده ایجاد کنید، دستور بالا را تایپ کنید و در انتها  `release--` را اضافه کنید. فایل اجرایی به دست آمده در پوشه مقصد در سیستم شما در دسترس خواهد بود و می تواند با دستور:
+آخرین اجرا روی این شاخه: ۰ خطا / ۱۸۹ unit / ۶ + ۸ یکپارچه‌سازی / ۳۸ + ۴ build_support.
 
-```sh
-target/debug/rustdesk
-```
+## اسرار و CI
 
-یا برای نسخه بهینه سازی شده دستور زیر را اجرا کنید:
+پل پنج ورودی زمان ساخت می‌خواهد:
 
-```sh
-target/release/rustdesk
-```
+| متغیر | کاربرد | قالب |
+|---|---|---|
+| `HBBS_KEY` | کلید عمومی سرور rendezvous (`RS_PUB_KEY` را بازنویسی می‌کند) | base64، پس از رمزگشایی ۳۲ بایت |
+| `HBBS_HOST` | میزبان سرور rendezvous | `host[:port[-port2]]` |
+| `HBBR_HOST` | میزبان سرور relay | `host[:port]` |
+| `VHD_BRIDGE_SECRET_HEX` (یا `_B64`) | راز مشترک HMAC به طول ۳۲ بایت | ۶۴ hex / ۴۴ base64 |
+| `VHD_BRIDGE_SECRET_VERSION` | نسخه چرخش کلید یکنوای صعودی | عدد صحیح نامنفی |
 
-لطفاً اطمینان حاصل کنید که این دستورات را از پوشه مخزن RustDesk اجرا می کنید، در غیر این صورت ممکن است برنامه نتواند منابع مورد نیاز را پیدا کند. همچنین توجه داشته باشید که سایر دستورات فرعی Cargo مانند `install` یا `run` در حال حاضر از طریق این روش پشتیبانی نمی شوند زیرا برنامه به جای سیستم عامل میزبان, در داخل کانتینر نصب و اجرا میشود.
+دو مسیر:
 
-## ساختار پوشه ها 
+1. **توسعه محلی** &mdash; `secret.sec` را در ریشه مخزن با خطوط `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:` پر کنید. این فایل توسط [`.gitignore`](../.gitignore) نادیده گرفته می‌شود.
+2. **CI** &mdash; همان نام‌ها را به‌عنوان repository secret در GitHub Actions تنظیم کنید؛ [`.github/workflows/build.yml`](../.github/workflows/build.yml) آن‌ها را به‌صورت متغیرهای محیطی ماسک‌شده تزریق می‌کند. **`secret.sec` هرگز روی runner مادیت نمی‌یابد**.
 
-- **[libs/hbb_common](https://github.com/rustdesk/rustdesk/tree/master/libs/hbb_common)**: video codec, config, tcp/udp wrapper, protobuf, fs functions for file transfer, and some other utility functions
-- **[libs/scrap](https://github.com/rustdesk/rustdesk/tree/master/libs/scrap)**: screen capture
-- **[libs/enigo](https://github.com/rustdesk/rustdesk/tree/master/libs/enigo)**: platform specific keyboard/mouse control
-- **[src/ui](https://github.com/rustdesk/rustdesk/tree/master/src/ui)**: GUI
-- **[src/server](https://github.com/rustdesk/rustdesk/tree/master/src/server)**: audio/clipboard/input/video services, and network connections
-- **[src/client.rs](https://github.com/rustdesk/rustdesk/tree/master/src/client.rs)**: start a peer connection
-- **[src/rendezvous_mediator.rs](https://github.com/rustdesk/rustdesk/tree/master/src/rendezvous_mediator.rs)**: Communicate with [rustdesk-server](https://github.com/rustdesk/rustdesk-server), wait for remote direct (TCP hole punching) or relayed connection
-- **[src/platform](https://github.com/rustdesk/rustdesk/tree/master/src/platform)**: platform specific code
-- **[flutter](https://github.com/rustdesk/rustdesk/tree/master/flutter)**: Flutter code for mobile
-- **[flutter/web/js](https://github.com/rustdesk/rustdesk/tree/master/flutter/web/js)**: Javascript for Flutter web client
+`secret.sec` و `vhd_bridge_secret.bin` هر دو در `.gitignore` هستند و **هرگز نباید commit شوند**. `scripts/check_bridge_strings.ps1` تور ایمنی پس از ساخت است.
 
-## تصاویر محیط نرم‌افزار
+## مجوز و انتساب
 
-![image](https://user-images.githubusercontent.com/71636191/113112362-ae4deb80-923b-11eb-957d-ff88daad4f06.png)
+این فورک تحت همان مجوز بالادست منتشر می‌شود: **GNU Affero General Public License v3.0 (AGPL-3.0)**. متن کامل در [`../LICENCE`](../LICENCE)؛ فورک **مجوز را تغییر نمی‌دهد**.
 
-![image](https://user-images.githubusercontent.com/71636191/113112619-f705a480-923b-11eb-911d-97e984ef52b6.png)
+- تمامی حق تکثیر کد بالادست RustDesk نزد نویسندگان و مشارکت‌کنندگان بالادست باقی می‌ماند، رجوع کنید به <https://github.com/rustdesk/rustdesk>.
+- تغییرات این فورک (ویژگی‌های `vhd-bridge` / `controlled-only` و کد پشتیبان) نیز تحت AGPL-3.0 توزیع می‌شود؛ کاربران پایین‌دستی همه حقوقی را که AGPL-3.0 اعطا می‌کند، از جمله حق دریافت کد منبع متناظر برای هر استقرار شبکه، حفظ می‌کنند.
+- نام و لوگوی "RustDesk" متعلق به پروژه بالادست هستند؛ این فورک آن‌ها را صرفاً برای شناسایی پایه کد اصلاح‌شده استفاده می‌کند، در چارچوب استفاده منصفانه از علائم تجاری در فورک‌های نرم‌افزار آزاد.
+- کتابخانه‌های شخص ثالث (vcpkg: `libvpx`، `libyuv`، `opus`، `aom`؛ Sciter SDK؛ وابستگی‌های Flutter) مجوزهای اصلی خود را حفظ می‌کنند.
 
-![image](https://user-images.githubusercontent.com/71636191/113112857-3fbd5d80-923c-11eb-9836-768325faf906.png)
-
-![image](https://user-images.githubusercontent.com/71636191/135385039-38fdbd72-379a-422d-b97f-33df71fb1cec.png)
+استفاده از این فورک به منزله پذیرش AGPL-3.0 و **سلب مسئولیت در برابر سوءاستفاده** در ابتدای فایل است.

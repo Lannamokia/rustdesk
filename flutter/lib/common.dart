@@ -1292,7 +1292,9 @@ Widget msgboxIcon(String type) {
   if (type.contains("success")) {
     iconData = Icons.check_circle;
   }
-  if (type == "wait-uac" || type == "wait-remote-accept-nook") {
+  if (type == "wait-uac" ||
+      type == "wait-remote-accept-nook" ||
+      type == "wait-vhd-approval") {
     iconData = Icons.hourglass_top;
   }
   if (type == 'on-uac' || type == 'on-foreground-elevated') {

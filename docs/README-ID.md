@@ -1,166 +1,138 @@
 <p align="center">
   <img src="../res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
-  <a href="#free-public-servers">Servers</a> •
-  <a href="#raw-steps-to-build">Build</a> •
-  <a href="#how-to-build-with-docker">Docker</a> •
-  <a href="#file-structure">Structure</a> •
-  <a href="#snapshot">Snapshot</a><br>
-  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-GR.md">Ελληνικά</a>]<br>
-  <b>Kami membutuhkan bantuanmu untuk menterjemahkan file README dan <a href="https://github.com/rustdesk/rustdesk/tree/master/src/lang">RustDesk UI</a> ke Bahasa Indonesia</b>
+  <b>RustDesk &mdash; fork <code>Lannamokia</code> dengan jembatan otentikasi mesin VHD</b><br>
+  <a href="#status-fork">Status fork</a> &bull;
+  <a href="#yang-ditambahkan-fork-ini">Tambahan</a> &bull;
+  <a href="#kompilasi">Kompilasi</a> &bull;
+  <a href="#rahasia-dan-ci">Rahasia &amp; CI</a> &bull;
+  <a href="#lisensi-dan-atribusi">Lisensi</a><br>
+  [<a href="../README.md">English</a>] | [<a href="README-UA.md">Українська</a>] | [<a href="README-CS.md">česky</a>] | [<a href="README-ZH.md">中文</a>] | [<a href="README-HU.md">Magyar</a>] | [<a href="README-ES.md">Español</a>] | [<a href="README-FA.md">فارسی</a>] | [<a href="README-FR.md">Français</a>] | [<a href="README-DE.md">Deutsch</a>] | [<a href="README-PL.md">Polski</a>] | [<a href="README-FI.md">Suomi</a>] | [<a href="README-ML.md">മലയാളം</a>] | [<a href="README-JP.md">日本語</a>] | [<a href="README-NL.md">Nederlands</a>] | [<a href="README-IT.md">Italiano</a>] | [<a href="README-RU.md">Русский</a>] | [<a href="README-PTBR.md">Português (Brasil)</a>] | [<a href="README-EO.md">Esperanto</a>] | [<a href="README-KR.md">한국어</a>] | [<a href="README-AR.md">العربي</a>] | [<a href="README-VN.md">Tiếng Việt</a>] | [<a href="README-DA.md">Dansk</a>] | [<a href="README-GR.md">Ελληνικά</a>] | [<a href="README-TR.md">Türkçe</a>] | [<a href="README-NO.md">Norsk</a>] | [<a href="README-RO.md">Română</a>]
 </p>
 
-Mari mengobrol bersama kami: [Discord](https://discord.gg/nDceKgxnkV) | [Twitter](https://twitter.com/rustdesk) | [Reddit](https://www.reddit.com/r/rustdesk) | [YouTube](https://www.youtube.com/@rustdesk)
+> [!Important]
+> Repository ini adalah fork hilir dari [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk). Dokumentasi Inggris lengkap: [`../README.md`](../README.md).
+> Hak cipta, merek dagang, dan lisensi AGPL-3.0 upstream tidak berubah &mdash; lihat [Lisensi dan atribusi](#lisensi-dan-atribusi).
 
-[![RustDesk Server Pro](https://img.shields.io/badge/RustDesk%20Server%20Pro-Fitur%20Lanjutan-blue)](https://rustdesk.com/pricing.html)
+> [!Caution]
+> **Penafian penyalahgunaan:** developer upstream RustDesk dan pemelihara fork ini tidak menoleransi atau mendukung penggunaan tidak etis atau ilegal dari perangkat lunak ini. Akses, kontrol, atau pelanggaran privasi tanpa izin dilarang keras. Penulis tidak bertanggung jawab atas penyalahgunaan apa pun.
 
-[![Open Bounties](https://img.shields.io/endpoint?url=https%3A%2F%2Fconsole.algora.io%2Fapi%2Fshields%2Frustdesk%2Fbounties%3Fstatus%3Dopen)](https://console.algora.io/org/rustdesk/bounties?status=open)
+---
 
-Merupakan perangkat lunak Remote Desktop yang baru, dan dibangun dengan Rust. Bahkan kamu bisa langsung menggunakannya tanpa perlu melakukan konfigurasi tambahan. Serta memiliki kontrol penuh terhadap semua data, tanpa perlu merasa was-was tentang isu keamanan, dan yang lebih menarik adalah memiliki opsi untuk menggunakan server rendezvous/relay milik kami, [konfigurasi server sendiri](https://rustdesk.com/server), atau [tulis rendezvous/relay server anda sendiri](https://github.com/rustdesk/rustdesk-server-demo).
+## Status fork
 
-![image](https://user-images.githubusercontent.com/71636191/171661982-430285f0-2e12-4b1d-9957-4a58e375304d.png)
+| | |
+|---|---|
+| **Upstream** | [`rustdesk/rustdesk`](https://github.com/rustdesk/rustdesk) (di git sebagai remote `upstream`) |
+| **Fork ini** | [`Lannamokia/rustdesk`](https://github.com/Lannamokia/rustdesk) |
+| **Branch aktif** | `feature/vhd-machine-auth-bridge` |
+| **Submodul** | `libs/hbb_common` &rarr; [`Lannamokia/hbb_common`](https://github.com/Lannamokia/hbb_common), branch sama |
+| **Lisensi** | AGPL-3.0 (sama dengan upstream &mdash; lihat [`LICENCE`](../LICENCE)) |
+| **Tujuan** | Menjalankan sisi Controlled RustDesk sebagai sidecar agen VHDMount eksternal melalui jembatan terotentikasi yang terikat ke mesin. |
 
-RustDesk mengajak semua orang untuk ikut berkontribusi. Lihat [`docs/CONTRIBUTING-ID.md`](CONTRIBUTING-ID.md) untuk melihat panduan.
+Saat `vhd-bridge` **dimatikan**, artefak build berperilaku identik dengan RustDesk upstream &mdash; invarian ini diverifikasi otomatis oleh `tests/feature_off_parity.rs`.
 
-[**FAQ**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
+## Yang ditambahkan fork ini
 
-[**UNDUH BINARY**](https://github.com/rustdesk/rustdesk/releases)
+Subsistem kohesif &mdash; **jembatan otentikasi mesin VHD** &mdash; dikendalikan oleh dua Cargo feature, **default mati**:
 
-[**NIGHTLY BUILD**](https://github.com/rustdesk/rustdesk/releases/tag/nightly)
+- **`vhd-bridge`** &mdash; mengompilasi worker jembatan, kabel IPC, overlay UI pemeliharaan, dan smoke test.
+- **`controlled-only`** &mdash; menghapus UI dan jalur kode Controller (initiator), menghasilkan biner yang hanya dapat dikontrol; dipasangkan dengan `vhd-bridge` untuk build sidecar produksi.
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-    alt="Get it on F-Droid"
-    height="80">](https://f-droid.org/en/packages/com.carriez.flutter_hbb)
+Tanpa feature aktif, `cargo run` dan alur build upstream berjalan tanpa perubahan.
 
-## Dependensi
+### Perubahan utama
 
-Pada versi desktop, antarmuka pengguna (GUI) menggunakan [Sciter](https://sciter.com/) atau flutter
+- **`src/vhd_bridge/`** &ndash; worker named pipe, mesin status `Identify &rarr; Authenticate &rarr; PeerSet &rarr; Heartbeat &rarr; Approval`, HMAC-SHA256 dengan rahasia bersama 32 byte yang disuntikkan saat build, backoff koneksi ulang, observabilitas terstruktur, log sink yang menyensor rahasia.
+- **`src/server/connection.rs`** &ndash; gerbang persetujuan: sebelum menerima peer masuk, dikonsultasikan peer-set otentikasi mesin yang dipelihara oleh jembatan.
+- **`src/auth_2fa.rs`** &ndash; 2FA dipaksa OFF selagi jembatan menguasai otentikasi (diverifikasi oleh `tests/smoke_2fa_disabled.rs`).
+- **`flutter/lib/desktop/widgets/maintenance_overlay.dart`** &ndash; overlay yang merefleksikan status jembatan (`active / starting / lost`).
+- **`libs/build_support/`** &ndash; crate pendukung yang dibagi `build.rs` dan CI: gerbang prasyarat ketat, parser `secret.sec` toleran, uji konsistensi terhadap dokumen protokol.
+- **`docs/vhd-rustdesk-bridge-protocol.md`** &ndash; referensi wire protocol.
+- **`scripts/check_bridge_strings.ps1`** &ndash; pemindai kebocoran pasca-build: memastikan tidak ada byte plaintext `HBBS Key` / `VHDMount Key` bocor ke artefak.
+- **`.github/workflows/build.yml`** &mdash; cross-platform CI workflow; the key Windows jobs are **controller-windows** (Flutter desktop bundle, default features + `hwcodec` + `vram` + `flutter`, no bridge) and **controlled-windows** (controlled sidecar, `--features vhd-bridge,controlled-only,hwcodec,vram`), running the leakage + smoke scripts.
 
-Kamu bisa mengunduh Sciter dynamic library disini.
+Spesifikasi lengkap di [`.kiro/specs/vhd-machine-auth-bridge/`](../.kiro/specs/vhd-machine-auth-bridge).
 
-[Windows](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.win/x64/sciter.dll) |
-[Linux](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so) |
-[MacOS](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.osx/libsciter.dylib)
+## Klon
 
-## Langkah awal untuk memulai
-
-- Siapkan env development Rust dan env build C++
-
-- Install [vcpkg](https://github.com/microsoft/vcpkg), dan atur variabel env `VCPKG_ROOT` dengan benar
-
-  - Windows: vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
-  - Linux/MacOS: vcpkg install libvpx libyuv opus aom
-
-- jalankan `cargo run`
-
-## [Build](https://rustdesk.com/docs/en/dev/build/)
-
-## Cara Build di Linux
-
-### Ubuntu 18 (Debian 10)
-
-```sh
-sudo apt install -y zip g++ gcc git curl wget nasm yasm libgtk-3-dev clang libxcb-randr0-dev libxdo-dev \
-        libxfixes-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libpulse-dev cmake make \
-        libclang-dev ninja-build libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
-```
-
-### Fedora 28 (CentOS 8)
+Fork mengubah URL submodul `libs/hbb_common`; klon rekursif:
 
 ```sh
-sudo yum -y install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libxdo-devel libXfixes-devel pulseaudio-libs-devel cmake alsa-lib-devel
-```
-
-### Arch (Manjaro)
-
-```sh
-sudo pacman -Syu --needed unzip git cmake gcc curl wget yasm nasm zip make pkg-config clang gtk3 xdotool libxcb libxfixes alsa-lib pipewire
-```
-
-### Install vcpkg
-
-```sh
-git clone https://github.com/microsoft/vcpkg
-cd vcpkg
-git checkout 2023.04.15
-cd ..
-vcpkg/bootstrap-vcpkg.sh
-export VCPKG_ROOT=$HOME/vcpkg
-vcpkg/vcpkg install libvpx libyuv opus aom
-```
-
-### Mengatasi masalah libvpx (Untuk Fedora)
-
-```sh
-cd vcpkg/buildtrees/libvpx/src
-cd *
-./configure
-sed -i 's/CFLAGS+=-I/CFLAGS+=-fPIC -I/g' Makefile
-sed -i 's/CXXFLAGS+=-I/CXXFLAGS+=-fPIC -I/g' Makefile
-make
-cp libvpx.a $HOME/vcpkg/installed/x64-linux/lib/
-cd
-```
-
-### Build
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-git clone https://github.com/rustdesk/rustdesk
+git clone --recursive https://github.com/Lannamokia/rustdesk.git
 cd rustdesk
-mkdir -p target/debug
-wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
-mv libsciter-gtk.so target/debug
-VCPKG_ROOT=$HOME/vcpkg cargo run
+git checkout feature/vhd-machine-auth-bridge
+git submodule update --init --recursive
 ```
 
-## Cara Build dengan Docker
+Kalau sudah clone dengan `.gitmodules` upstream: `git submodule sync && git submodule update --init --recursive`.
 
-Mulailah dengan melakukan kloning (clone) repositori dan build dengan docker container:
+## Kompilasi
+
+### Build upstream (tanpa jembatan)
+
+Tanpa feature aktif, fork adalah superset ketat dari upstream; instruksi upstream berlaku tanpa perubahan. Dependensi dan perintah lengkap di [`../README.md`](../README.md).
+
+### Build dengan jembatan (Windows MSVC, direkomendasikan)
+
+Jembatan saat ini hanya mendukung Windows (transport named pipe dan agen VHDMount).
+
+Lingkungan yang diperlukan:
+
+```text
+VCPKG_ROOT             = C:\src\vcpkg
+VCPKG_DEFAULT_TRIPLET  = x64-windows-static
+VCPKGRS_DYNAMIC        = 0
+LIBCLANG_PATH          = <jalur LLVM\x64\bin>
+```
+
+Lalu isi `secret.sec` (khusus dev) atau set variabel env terkait, lalu:
 
 ```sh
-git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
-docker build -t "rustdesk-builder" .
+# Build sidecar produksi (jembatan ON, controller dihapus)
+cargo build --release --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+
+# Hanya jembatan (UI controller dipertahankan untuk dev)
+cargo build --features vhd-bridge --target x86_64-pc-windows-msvc
 ```
 
-Selanjutnya, setiap kali ketika kamu akan melakukan build aplikasi, jalankan perintah berikut:
+### Verifikasi
 
 ```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
+cargo check --lib --features vhd-bridge,controlled-only,hwcodec,vram --target x86_64-pc-windows-msvc
+cargo test  -p rustdesk --lib   --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test smoke_2fa_disabled --features vhd-bridge,controlled-only,hwcodec,vram
+cargo test  --test feature_off_parity
+cargo test  -p build_support
 ```
 
-Perlu diingat bahwa pada saat build pertama kali, mungkin memerlukan waktu lebih lama sebelum dependensi di-cache, build berikutnya akan lebih cepat. Selain itu, jika perlu menentukan argumen yang berbeda untuk perintah build, kamu dapat melakukannya di akhir perintah di posisi `<OPTIONAL-ARGS>`. Misalnya, jika ingin membangun versi rilis yang dioptimalkan, jalankan perintah di atas dan tambahkan `--release`. Hasil eksekusi perintah tersebut akan tersimpan pada target folder di sistem kamu, dan dapat dijalankan dengan:
+Run terakhir di branch ini: 0 error / 189 unit / 6 + 8 integrasi / 38 + 4 build_support.
 
-```sh
-target/debug/rustdesk
-```
+## Rahasia dan CI
 
-Atau, jika kamu menjalankan rilis yang dapat dieksekusi:
+Jembatan butuh lima input saat build:
 
-```sh
-target/release/rustdesk
-```
+| Variabel | Tujuan | Format |
+|---|---|---|
+| `HBBS_KEY` | Public key rendezvous server (menimpa `RS_PUB_KEY`) | base64, 32 byte setelah dekode |
+| `HBBS_HOST` | Host rendezvous server | `host[:port[-port2]]` |
+| `HBBR_HOST` | Host relay server | `host[:port]` |
+| `VHD_BRIDGE_SECRET_HEX` (atau `_B64`) | Rahasia HMAC bersama 32 byte | 64 hex / 44 base64 |
+| `VHD_BRIDGE_SECRET_VERSION` | Versi rotasi kunci monotonik | bilangan bulat non-negatif |
 
-Harap pastikan bahwa kamu menjalankan perintah ini dari repositori root RustDesk, jika tidak demikian, aplikasi mungkin tidak dapat menemukan sumber yang diperlukan. Dan juga, perintah cargo seperti `install` atau `run` saat ini tidak didukung melalui metode ini karena, proses menginstal atau menjalankan program terjadi di dalam container bukan pada host.
+Dua jalur:
 
-## Struktur File
+1. **Dev lokal** &mdash; isi `secret.sec` di root repo dengan `HBBS Key:` / `HBBS Host:` / `HBBR Host:` / `VHDMount Key:` / `VHDMount Key Version:`. File diabaikan oleh [`.gitignore`](../.gitignore).
+2. **CI** &mdash; konfigurasi nama yang sama sebagai repository secret GitHub Actions; [`.github/workflows/build.yml`](../.github/workflows/build.yml) menyuntikkannya sebagai variabel env yang dimasking. **`secret.sec` tidak pernah dimaterialkan di runner**.
 
-- **[libs/hbb_common](https://github.com/rustdesk/rustdesk/tree/master/libs/hbb_common)**: video codec, config, tcp/udp wrapper, protobuf, fs functions untuk transfer file, dan beberapa fungsi utilitas lainnya
-- **[libs/scrap](https://github.com/rustdesk/rustdesk/tree/master/libs/scrap)**: screen capture
-- **[libs/enigo](https://github.com/rustdesk/rustdesk/tree/master/libs/enigo)**: spesifikasi platform keyboard/mouse control
-- **[src/ui](https://github.com/rustdesk/rustdesk/tree/master/src/ui)**: GUI
-- **[src/server](https://github.com/rustdesk/rustdesk/tree/master/src/server)**: audio/clipboard/input/video services, dan network connections
-- **[src/client.rs](https://github.com/rustdesk/rustdesk/tree/master/src/client.rs)**: start a peer connection
-- **[src/rendezvous_mediator.rs](https://github.com/rustdesk/rustdesk/tree/master/src/rendezvous_mediator.rs)**: Komunikasi dengan [rustdesk-server](https://github.com/rustdesk/rustdesk-server), menunggu untuk remote direct (TCP hole punching) atau relayed connection
-- **[src/platform](https://github.com/rustdesk/rustdesk/tree/master/src/platform)**: kode khusus platform
+`secret.sec` dan `vhd_bridge_secret.bin` keduanya ada di `.gitignore` dan **tidak boleh di-commit**. `scripts/check_bridge_strings.ps1` adalah jaring pengaman pasca-build.
 
-## Snapshots
+## Lisensi dan atribusi
 
-![image](https://user-images.githubusercontent.com/71636191/113112362-ae4deb80-923b-11eb-957d-ff88daad4f06.png)
+Fork didistribusikan dengan lisensi yang sama dengan upstream: **GNU Affero General Public License v3.0 (AGPL-3.0)**. Teks lengkap di [`../LICENCE`](../LICENCE); fork **tidak memodifikasi** lisensi.
 
-![image](https://user-images.githubusercontent.com/71636191/113112619-f705a480-923b-11eb-911d-97e984ef52b6.png)
+- Semua hak cipta atas basis kode RustDesk upstream tetap pada penulis dan kontributor upstream, lihat <https://github.com/rustdesk/rustdesk>.
+- Modifikasi yang dibawa fork ini (feature `vhd-bridge` / `controlled-only` dan kode pendukung) juga didistribusikan di bawah AGPL-3.0; pengguna hilir mempertahankan semua hak yang diberikan AGPL-3.0, termasuk hak atas kode sumber yang sesuai untuk setiap penyebaran jaringan.
+- Nama dan logo "RustDesk" milik proyek upstream; fork hanya menggunakannya untuk mengidentifikasi basis kode yang dimodifikasi, sesuai praktik penggunaan wajar merek dagang untuk fork perangkat lunak bebas.
+- Pustaka pihak ketiga (vcpkg: `libvpx`, `libyuv`, `opus`, `aom`; Sciter SDK; dependensi Flutter) tetap dengan lisensi aslinya.
 
-![image](https://user-images.githubusercontent.com/71636191/113112857-3fbd5d80-923c-11eb-9836-768325faf906.png)
-
-![image](https://user-images.githubusercontent.com/71636191/135385039-38fdbd72-379a-422d-b97f-33df71fb1cec.png)
+Menggunakan fork ini berarti menerima AGPL-3.0 dan **penafian penyalahgunaan** di bagian atas berkas.

@@ -70,6 +70,119 @@ use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use crate::virtual_display_manager;
 pub type Sender = mpsc::UnboundedSender<(Instant, Arc<Message>)>;
 
+// vhd-machine-auth-bridge (task 11.4 / 11.5 / Requirement 19.1, 19.2,
+// 19.6, 19.10, 19.11): peer-approval gate plumbing.
+//
+// `derive_conn_type` maps a `LoginRequest` to the public
+// `vhd_bridge::ConnectionType` enum used by `peer_approval::gate(...)`,
+// with the same precedence as the dispatch table inside `on_message`:
+// the `oneof` arm wins, with the `view-only` toggle inferred from
+// `OptionMessage.disable_keyboard == Yes` only when the oneof is
+// empty (Requirement 19.3 / design.md §"Peer Approval Gate"). The
+// helper is cfg-gated to keep the non-bridge build untouched and to
+// avoid pulling `vhd_bridge::ConnectionType` into namespace resolution
+// where it does not exist.
+#[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+fn derive_conn_type(lr: &LoginRequest) -> crate::vhd_bridge::ConnectionType {
+    use crate::vhd_bridge::ConnectionType;
+    match lr.union.as_ref() {
+        Some(login_request::Union::FileTransfer(_)) => ConnectionType::FileTransfer,
+        Some(login_request::Union::PortForward(_)) => ConnectionType::PortForward,
+        Some(login_request::Union::Terminal(_)) => ConnectionType::Terminal,
+        Some(login_request::Union::ViewCamera(_)) => ConnectionType::ViewOnly,
+        None => {
+            // Toggle-driven view-only mode: the controller signals it
+            // via `OptionMessage.disable_keyboard = Yes` (see
+            // `src/client.rs` `set_msg_option`); the controlled side
+            // also reads the same field at `connection.rs` line 4364.
+            // Treating it as `ViewOnly` here keeps VHDMount's policy
+            // logging consistent with the controller-side intent.
+            let view_only = lr
+                .option
+                .as_ref()
+                .and_then(|o| o.disable_keyboard.enum_value().ok())
+                .map(|b| b == BoolOption::Yes)
+                .unwrap_or(false);
+            if view_only {
+                ConnectionType::ViewOnly
+            } else {
+                ConnectionType::Controlled
+            }
+        }
+        // `login_request::Union` is `#[non_exhaustive]`; future arms
+        // default to the standard `Controlled` interactive session
+        // until the dispatch table above is extended.
+        Some(_) => ConnectionType::Controlled,
+    }
+}
+
+/// Handle returned by [`spawn_pending_pump`]. Dropping without calling
+/// [`PendingPump::stop`] still ends the spawned task once the cloned
+/// `Sender` it holds is its only path to the connection — but `stop()`
+/// is preferred so the cancellation is immediate and observable.
+#[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+struct PendingPump {
+    stop_tx: hbb_common::tokio::sync::oneshot::Sender<()>,
+}
+
+#[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+impl PendingPump {
+    fn stop(self) {
+        // `oneshot::Sender::send` returns `Err` only if the receiver
+        // already fired or the task already exited via the dropped
+        // `tx` clone — both are benign in our context.
+        let _ = self.stop_tx.send(());
+    }
+}
+
+/// Task 11.5: while `peer_approval::gate(...)` is awaiting a
+/// `Peer_Approval_Response`, push `LOGIN_MSG_VHD_APPROVAL_PENDING`
+/// through the existing login-response channel every 1s as a progress
+/// signal (Requirement 19.11). Cancellation is delivered via a
+/// `oneshot::Sender<()>` so `stop()` returns immediately.
+///
+/// The push goes through `Connection::inner.tx` — the same unbounded
+/// `mpsc` that feeds the outer `tokio::select!` loop's `rx.recv()`
+/// arm in `Connection::start`. Pushes that arrive while
+/// `on_message().await` is in flight buffer in the unbounded queue
+/// and drain on the next iteration of the outer `select!`; the pump
+/// itself never blocks the gate path or the connection task
+/// (Requirement 19.13).
+#[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+fn spawn_pending_pump(tx: Sender) -> PendingPump {
+    use hbb_common::tokio::sync::oneshot;
+    let (stop_tx, mut stop_rx) = oneshot::channel::<()>();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        // `interval.tick()` resolves immediately on the first call;
+        // skip that initial tick so the first push lands at T+1s
+        // rather than T+0, matching the spec's "每 1s 推一次" cadence.
+        interval.tick().await;
+        // If the worker takes a long time and we miss multiple ticks,
+        // collapse them into one rather than firing back-to-back —
+        // this is a progress signal, not a heartbeat.
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            tokio::select! {
+                _ = &mut stop_rx => return,
+                _ = interval.tick() => {
+                    let mut msg_out = Message::new();
+                    let mut res = LoginResponse::new();
+                    res.set_error(crate::client::LOGIN_MSG_VHD_APPROVAL_PENDING.to_owned());
+                    msg_out.set_login_response(res);
+                    if tx.send((Instant::now(), Arc::new(msg_out))).is_err() {
+                        // The connection task already dropped its
+                        // receiver; nothing more we can do, exit
+                        // cleanly.
+                        return;
+                    }
+                }
+            }
+        }
+    });
+    PendingPump { stop_tx }
+}
+
 lazy_static::lazy_static! {
     static ref LOGIN_FAILURES: [Arc::<Mutex<HashMap<String, (i32, i32, i32)>>>; 2] = Default::default();
     static ref SESSIONS: Arc::<Mutex<HashMap<SessionKey, Session>>> = Default::default();
@@ -287,6 +400,14 @@ pub struct Connection {
     show_remote_cursor: bool,
     // by peer
     ip: String,
+    // vhd-machine-auth-bridge (task 11.4 / Requirement 19.3): full
+    // peer socket address (IP + port) cached from `on_open(addr)`,
+    // consumed by `peer_approval::gate(...)` when the bridge feature
+    // is enabled. Stored separately from `ip` because the gate's HMAC
+    // input includes the port, which `ip` (the IP-only display
+    // string) deliberately strips.
+    #[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+    peer_addr: Option<SocketAddr>,
     // by peer
     disable_keyboard: bool,
     // by peer
@@ -327,6 +448,22 @@ pub struct Connection {
     start_cm_ipc_para: Option<StartCmIpcPara>,
     auto_disconnect_timer: Option<(Instant, u64)>,
     authed_conn_id: Option<self::raii::AuthedConnID>,
+    // vhd-machine-auth-bridge (task 15.7 / Requirements 15.2, 15.3,
+    // 15.6): RAII guard that bumps `vhd_bridge::active_session_count`
+    // when the connection is promoted to authorized (in
+    // `on_remote_authorized`) and decrements it on `Drop`. Held
+    // through `Option` so the increment lands at exactly the moment
+    // §11.4 hands control back via `try_start_cm(.., authorized=true)`
+    // — connections that exit before that path (rejected, abnormal
+    // close pre-auth, peer-approval `Rejected`) cannot leak a
+    // ref-count and therefore cannot trigger the `Maintenance_Overlay`
+    // for unauthorized peers (Requirement 15.3).
+    //
+    // Defined unconditionally because the `vhd_bridge` façade returns
+    // a zero-sized no-op guard on the feature-off / non-Windows
+    // fallback, keeping `Connection`'s layout stable across feature
+    // flavors and avoiding scattered `cfg!` at the field site.
+    active_session_guard: Option<crate::vhd_bridge::RemoteSessionGuard>,
     file_remove_log_control: FileRemoveLogControl,
     last_supported_encoding: Option<SupportedEncoding>,
     services_subed: bool,
@@ -480,6 +617,8 @@ impl Connection {
             follow_remote_window: false,
             multi_ui_session: false,
             ip: "".to_owned(),
+            #[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+            peer_addr: None,
             disable_audio: false,
             #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
             enable_file_transfer: false,
@@ -517,6 +656,7 @@ impl Connection {
             }),
             auto_disconnect_timer: None,
             authed_conn_id: None,
+            active_session_guard: None,
             file_remove_log_control: FileRemoveLogControl::new(id),
             last_supported_encoding: None,
             services_subed: false,
@@ -1326,6 +1466,10 @@ impl Connection {
             }
         }
         self.ip = addr.ip().to_string();
+        #[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+        {
+            self.peer_addr = Some(addr);
+        }
         let mut msg_out = Message::new();
         msg_out.set_hash(self.hash.clone());
         self.send(msg_out).await;
@@ -1916,8 +2060,36 @@ impl Connection {
         }
     }
 
-    fn on_remote_authorized(&self) {
+    fn on_remote_authorized(&mut self) {
         self.update_codec_on_login();
+        // vhd-machine-auth-bridge (task 15.7 / Requirements 15.2,
+        // 15.3, 15.6): bump the active-session counter so the Flutter
+        // `Maintenance_Overlay` becomes visible. Only authorized
+        // connections reach this path — rejected peer-approval
+        // outcomes (§11.4) take the `try_start_cm(.., authorized=false)`
+        // + `return` branch in `on_message`, which does *not* call
+        // `on_remote_authorized`, so a rejected connection cannot bump
+        // the counter or trigger the overlay (Requirement 15.3).
+        //
+        // The matching decrement runs in the `Drop` impl of
+        // `RemoteSessionGuard`, which fires from `Connection::drop`
+        // — covering both normal teardown (`on_close` → drop) and
+        // abnormal close paths (panics, dropped futures). Idempotent:
+        // re-entering `on_remote_authorized` (which `on_message`'s
+        // logon-response path can do for the view-camera /
+        // file-transfer / port-forward branches) replaces the prior
+        // guard, so the previous one's `Drop` decrements before the
+        // new one is armed and the counter stays balanced. Re-arming
+        // is required because `Drop` order at struct teardown would
+        // otherwise leave a one-off `+1` if a future refactor caused
+        // the same connection to authorize twice.
+        if self.active_session_guard.take().is_some() {
+            // Drop the previous guard *before* re-arming so the
+            // counter does not transiently spike to +2 for one
+            // connection.
+        }
+        self.active_session_guard = Some(crate::vhd_bridge::arm_remote_session());
+
         #[cfg(any(target_os = "windows", target_os = "linux"))]
         if config::option2bool(
             "allow-remove-wallpaper",
@@ -2157,6 +2329,15 @@ impl Connection {
             state.failures,
             self.ip,
         );
+        // vhd-machine-auth-bridge (task 9.2 / Requirement 7.5 / 14.6):
+        // emit `rotation` so the bridge worker reports the threshold-driven
+        // rotation distinctly from a regular `password_change`. The
+        // 1 s coalescer in `vhd_bridge::triggers` collapses this with the
+        // hook-fired `password_change` from `update_temporary_password()`
+        // above (last-non-heartbeat-wins), so the bridge ends up sending
+        // a single `Report_Frame` with `reason = "rotation"`.
+        #[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+        crate::vhd_bridge::triggers::notify_rotation();
         state.password = new_password;
         state.failures = 0;
     }
@@ -2585,6 +2766,69 @@ impl Connection {
                 } else {
                     self.update_failure_with_scope(failure, true, 0, FailureScope::Default);
                     if err_msg.is_empty() {
+                        // vhd-machine-auth-bridge (task 11.4 /
+                        // Requirement 14.6, 19.1, 19.2, 19.6, 19.10,
+                        // 19.11): password validated — interpose a
+                        // peer-approval round trip with VHDMount
+                        // before any `try_start_cm(..,
+                        // authorized=true)` path. The existing
+                        // `validate_password` / `validate_password_plain`
+                        // / `verify_h1` logic is intentionally
+                        // untouched (Requirement 19.10).
+                        //
+                        // - `Approved` / `BridgeUnavailable`
+                        //   (fail-open per Requirement 19.8): fall
+                        //   through to the pre-existing success path
+                        //   below.
+                        // - `Rejected`: respond with the dedicated
+                        //   `re-input-password`-style msgtype,
+                        //   register the connection in CM as
+                        //   unauthorized, and return — without
+                        //   triggering §15's `Maintenance_Overlay`.
+                        #[cfg(all(target_os = "windows", feature = "vhd-bridge"))]
+                        {
+                            let conn_type = derive_conn_type(&self.lr);
+                            let peer_addr = self.peer_addr;
+                            let pump_handle =
+                                self.inner.tx.clone().map(spawn_pending_pump);
+                            let outcome = match peer_addr {
+                                Some(addr) => {
+                                    crate::vhd_bridge::peer_approval::gate(
+                                        &self.lr, addr, conn_type,
+                                    )
+                                    .await
+                                }
+                                // Without a peer address we cannot
+                                // populate the HMAC input safely;
+                                // treat as bridge-unavailable per
+                                // Requirement 19.8.
+                                None => {
+                                    crate::vhd_bridge::ApprovalOutcome::BridgeUnavailable
+                                }
+                            };
+                            if let Some(h) = pump_handle {
+                                h.stop();
+                            }
+                            match outcome {
+                                crate::vhd_bridge::ApprovalOutcome::Approved
+                                | crate::vhd_bridge::ApprovalOutcome::BridgeUnavailable => {
+                                    // fall through to the existing
+                                    // success path
+                                }
+                                crate::vhd_bridge::ApprovalOutcome::Rejected => {
+                                    self.send_login_error(
+                                        crate::client::LOGIN_MSG_VHD_APPROVAL_REJECTED,
+                                    )
+                                    .await;
+                                    self.try_start_cm(
+                                        self.lr.my_id.clone(),
+                                        self.lr.my_name.clone(),
+                                        false,
+                                    );
+                                    return true;
+                                }
+                            }
+                        }
                         #[cfg(target_os = "linux")]
                         self.linux_headless_handle.wait_desktop_cm_ready().await;
                         if !self.send_logon_response_and_keep_alive().await {
@@ -3372,6 +3616,17 @@ impl Connection {
                                 self.lr.my_id.clone(),
                                 uuid.clone(),
                             );
+                            // vhd-machine-auth-bridge §17.2 /
+                            // Requirements 1.6, 20.1, 20.7, 20.9:
+                            // controlled-only must not respawn the
+                            // process as an outbound initiator. The
+                            // request is acknowledged by closing the
+                            // current session; the PENDING uuid map
+                            // entry is harmless because the matching
+                            // `Data::SwitchSidesUuid` IPC arm is
+                            // cfg-stripped per §17.3 and will never
+                            // be exchanged.
+                            #[cfg(not(feature = "controlled-only"))]
                             crate::run_me(vec![
                                 "--connect",
                                 &self.lr.my_id,
@@ -3379,6 +3634,10 @@ impl Connection {
                                 uuid.to_string().as_ref(),
                             ])
                             .ok();
+                            #[cfg(feature = "controlled-only")]
+                            log::warn!(
+                                "vhd_bridge: refused SwitchSidesRequest respawn in controlled-only build"
+                            );
                             self.on_close("switch sides", false).await;
                             return false;
                         }
@@ -5257,6 +5516,69 @@ async fn start_ipc(
     tx_stream_ready: mpsc::Sender<()>,
 ) -> ResultType<()> {
     use hbb_common::anyhow::anyhow;
+
+    // vhd-machine-auth-bridge: the controlled-only / vhd-bridge build
+    // ships without `flutter` and without `inline_sciter`, so the
+    // `--cm` / `--cm-no-ui` subcommands in `core_main.rs` are
+    // cfg-stripped to no-ops. Spawning a CM subprocess in this build
+    // produces a child that immediately exits (no UI handler is
+    // compiled in), and the loop below times out after ~8 s, kills
+    // the live remote-control connection ("Failed to connect to
+    // connection manager"), and the operator sees the session drop
+    // every few seconds.
+    //
+    // This build form is server-only by design: there is no logged-in
+    // user to click an "Accept/Reject" prompt and the validate-
+    // password path (plus the planned VHDMount peer-approval round
+    // trip in §11.x) is the policy gate. Returning Ok(()) here makes
+    // the connection's CM IPC arm a no-op:
+    //
+    //   * `rx_to_cm` keeps draining as the connection emits
+    //     `ipc::Data::Login` / `Authorize` / etc. — those messages
+    //     have nowhere meaningful to go in this build, so we drop
+    //     them silently.
+    //   * `tx_from_cm` is left unsignalled — the connection's main
+    //     loop already treats "no CM messages" as "no operator
+    //     button presses", which is exactly the steady state.
+    //   * `tx_stream_ready` MUST be tripped at least once so the
+    //     authorize-then-stream code path in `connection.rs::on_login`
+    //     does not stall waiting for the CM-ready handshake. We
+    //     send and then drop it; subsequent sends would just no-op
+    //     anyway because the receiver only reads it once.
+    //
+    // The branch is gated on `controlled-only` rather than on
+    // `vhd-bridge` because it is `controlled-only` that strips the
+    // controller-side UI (CM lives on the controlled side, but its
+    // chrome — sciter / flutter — does not exist in this flavour).
+    // Builds that have flutter or inline_sciter compiled in keep the
+    // original CM bring-up path so a Maintenance_Overlay (Task 16) or
+    // a Flutter-side CM window can still latch onto it.
+    #[cfg(all(
+        feature = "controlled-only",
+        not(feature = "flutter"),
+        not(feature = "inline_sciter"),
+    ))]
+    {
+        log::info!(
+            "vhd_bridge: skipping CM IPC bring-up — controlled-only build has no \
+             CM UI handler compiled in (no flutter, no sciter); the connection's \
+             CM arm becomes a no-op so authorize-then-stream proceeds without a \
+             CM round trip."
+        );
+        // Trip the stream-ready signal so the connection's main loop
+        // does not wait for a CM-ready handshake that will never come.
+        let _ = tx_stream_ready.send(()).await;
+        // Drain `rx_to_cm` for the lifetime of the connection so
+        // upstream `unbounded_send` calls do not pile up with
+        // nowhere to go. The receiver closes when the connection
+        // tears down; on close, exit cleanly so this task does not
+        // outlive its parent connection.
+        while rx_to_cm.recv().await.is_some() {
+            // drop
+        }
+        let _ = tx_from_cm; // silence "unused" without a #[allow]
+        return Ok(());
+    }
 
     loop {
         if !crate::platform::is_prelogin() {

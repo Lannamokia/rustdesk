@@ -23,6 +23,32 @@ use std::{
 
 type Message = RendezvousMessage;
 
+// vhd-machine-auth-bridge §17.5 / Requirement 20.5a, 20.5b:
+// `controlled-only` 形态下被动 LAN 应答 SHALL 保留（同局域网 P2P 直连依赖它），
+// 因此 `start_listening` 与下方 pong 构造路径都 NOT 受 `controlled-only` 约束。
+// 但 pong 报文 SHALL 仅暴露既有 `PeerDiscovery` 字段（cmd / id / mac / hostname /
+// username / platform），SHALL NOT 写入 `Bridge_Config.secret_version` /
+// `Bridge_State` / `controlledMachineId` 或任何 §17 / §19 桥接元数据；
+// `misc` 字段显式保持为空。该约束由本文件底部的回归测试守护。
+#[cfg(not(target_os = "ios"))]
+fn build_pong_peer_discovery(
+    id: String,
+    mac: String,
+    hostname: String,
+    username: String,
+    platform: String,
+) -> PeerDiscovery {
+    PeerDiscovery {
+        cmd: "pong".to_owned(),
+        mac,
+        id,
+        hostname,
+        username,
+        platform,
+        ..Default::default()
+    }
+}
+
 #[cfg(not(target_os = "ios"))]
 pub(super) fn start_listening() -> ResultType<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], get_broadcast_port()));
@@ -52,15 +78,13 @@ pub(super) fn start_listening() -> ResultType<()> {
                                 if hostname == "localhost" {
                                     hostname = "unknown".to_owned();
                                 }
-                                let peer = PeerDiscovery {
-                                    cmd: "pong".to_owned(),
-                                    mac: get_mac(&self_addr),
+                                let peer = build_pong_peer_discovery(
                                     id,
+                                    get_mac(&self_addr),
                                     hostname,
-                                    username: crate::platform::get_active_username(),
-                                    platform: whoami::platform().to_string(),
-                                    ..Default::default()
-                                };
+                                    crate::platform::get_active_username(),
+                                    whoami::platform().to_string(),
+                                );
                                 msg_out.set_peer_discovery(peer);
                                 socket.send_to(&msg_out.write_to_bytes()?, addr).ok();
                             }
@@ -73,6 +97,13 @@ pub(super) fn start_listening() -> ResultType<()> {
     }
 }
 
+// vhd-machine-auth-bridge §17.4 / Requirement 20.5:
+// controlled-only 形态下 "主动局域网发现" 与 WOL 发送路径被裁剪。被动监听
+// `start_listening` 由任务 17.5 单独保留以确保同 LAN 主控端仍能 P2P 发现本机。
+// 保留函数签名以避免散落 cfg 到调用方（`ui_interface::discover` /
+// `flutter_ffi::main_wol` 等），仅把函数体替换为非阻塞的 no-op。
+
+#[cfg(not(feature = "controlled-only"))]
 #[tokio::main(flavor = "current_thread")]
 pub async fn discover() -> ResultType<()> {
     let sockets = send_query()?;
@@ -83,6 +114,13 @@ pub async fn discover() -> ResultType<()> {
     Ok(())
 }
 
+#[cfg(feature = "controlled-only")]
+pub fn discover() -> ResultType<()> {
+    log::warn!("vhd_bridge: refused active LAN discovery in controlled-only build");
+    Ok(())
+}
+
+#[cfg(not(feature = "controlled-only"))]
 pub fn send_wol(id: String) {
     let interfaces = default_net::get_interfaces();
     for peer in &config::LanPeers::load().peers {
@@ -102,6 +140,12 @@ pub fn send_wol(id: String) {
             break;
         }
     }
+}
+
+#[cfg(feature = "controlled-only")]
+pub fn send_wol(id: String) {
+    let _ = id;
+    log::warn!("vhd_bridge: refused send_wol in controlled-only build");
 }
 
 #[inline]
@@ -161,6 +205,11 @@ fn get_ipaddr_by_peer<A: ToSocketAddrs>(peer: A) -> Option<IpAddr> {
     };
 }
 
+// Helpers below are only used by the active-discovery path (`discover`) and
+// the WOL sender path (`send_wol`). Under `controlled-only` both senders are
+// gated to no-ops, so these helpers also become unused; gate them to avoid
+// dead-code warnings while keeping the passive `start_listening` unaffected.
+#[cfg(not(feature = "controlled-only"))]
 fn create_broadcast_sockets() -> Vec<UdpSocket> {
     let mut ipv4s = Vec::new();
     // TODO: maybe we should use a better way to get ipv4 addresses.
@@ -185,6 +234,7 @@ fn create_broadcast_sockets() -> Vec<UdpSocket> {
     sockets
 }
 
+#[cfg(not(feature = "controlled-only"))]
 fn send_query() -> ResultType<Vec<UdpSocket>> {
     let sockets = create_broadcast_sockets();
     if sockets.is_empty() {
@@ -218,6 +268,7 @@ fn send_query() -> ResultType<Vec<UdpSocket>> {
     Ok(sockets)
 }
 
+#[cfg(not(feature = "controlled-only"))]
 fn wait_response(
     socket: UdpSocket,
     timeout: Option<std::time::Duration>,
@@ -287,6 +338,7 @@ fn wait_response(
     Ok(())
 }
 
+#[cfg(not(feature = "controlled-only"))]
 fn spawn_wait_responses(sockets: Vec<UdpSocket>) -> UnboundedReceiver<config::DiscoveryPeer> {
     let (tx, rx) = unbounded_channel::<_>();
     for socket in sockets {
@@ -302,6 +354,7 @@ fn spawn_wait_responses(sockets: Vec<UdpSocket>) -> UnboundedReceiver<config::Di
     rx
 }
 
+#[cfg(not(feature = "controlled-only"))]
 async fn handle_received_peers(mut rx: UnboundedReceiver<config::DiscoveryPeer>) -> ResultType<()> {
     let mut peers = config::LanPeers::load().peers;
     peers.iter_mut().for_each(|peer| {
@@ -341,4 +394,79 @@ async fn handle_received_peers(mut rx: UnboundedReceiver<config::DiscoveryPeer>)
     #[cfg(feature = "flutter")]
     crate::flutter_ffi::main_load_lan_peers();
     Ok(())
+}
+
+// vhd-machine-auth-bridge §17.5 / Requirement 20.5b 回归测试。
+// 校验 `start_listening` 应答路径构造的 `PeerDiscovery` SHALL 仅承载
+// 既有字段（cmd / id / mac / hostname / username / platform），SHALL NOT
+// 在编码后的字节流中夹带任何 `vhd-bridge` / `secret_version` /
+// `controlledMachineId` / `Bridge_State` / `Maintenance_Overlay` /
+// `VHDMount` / `VHDRustDeskBridge` 等桥接元数据。本测试在所有部署形态
+// 下都同等运行，使 `controlled-only` + `vhd-bridge` 形态产物的回归不会
+// 静默漏出。
+#[cfg(test)]
+#[cfg(not(target_os = "ios"))]
+mod tests {
+    use super::*;
+
+    // 探针：任何一旦命中说明 pong 报文已经泄漏桥接元数据。
+    const FORBIDDEN_TOKENS: &[&str] = &[
+        "vhd-bridge",
+        "vhd_bridge",
+        "VHDMount",
+        "VHDRustDeskBridge",
+        "secretVersion",
+        "secret_version",
+        "Bridge_State",
+        "BridgeState",
+        "controlledMachineId",
+        "controlled_machine_id",
+        "Maintenance_Overlay",
+        "controlled-only",
+    ];
+
+    #[test]
+    fn pong_payload_only_exposes_existing_peer_discovery_fields() {
+        let id = "123456789".to_owned();
+        let mac = "aa:bb:cc:dd:ee:ff".to_owned();
+        let hostname = "host-a".to_owned();
+        let username = "user-a".to_owned();
+        let platform = "Windows".to_owned();
+
+        let peer = build_pong_peer_discovery(
+            id.clone(),
+            mac.clone(),
+            hostname.clone(),
+            username.clone(),
+            platform.clone(),
+        );
+
+        assert_eq!(peer.cmd, "pong");
+        assert_eq!(peer.id, id);
+        assert_eq!(peer.mac, mac);
+        assert_eq!(peer.hostname, hostname);
+        assert_eq!(peer.username, username);
+        assert_eq!(peer.platform, platform);
+        // `misc` 是 PeerDiscovery 中唯一未被 start_listening 显式赋值的字段；
+        // 任何后续改动若把桥接元数据塞进 `misc`，本断言 SHALL 立即失败。
+        assert!(
+            peer.misc.is_empty(),
+            "pong peer_discovery.misc must remain empty; got {:?}",
+            peer.misc
+        );
+
+        let mut msg_out = Message::new();
+        msg_out.set_peer_discovery(peer);
+        let bytes = msg_out
+            .write_to_bytes()
+            .expect("encoding pong PeerDiscovery must succeed");
+
+        for token in FORBIDDEN_TOKENS {
+            assert!(
+                !bytes.windows(token.len()).any(|w| w == token.as_bytes()),
+                "pong payload leaked forbidden bridge token {:?}",
+                token
+            );
+        }
+    }
 }

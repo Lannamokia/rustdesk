@@ -52,7 +52,10 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
         page: DesktopHomePage(
           key: const ValueKey(kTabLabelHomePage),
         )));
-    if (bind.isIncomingOnly()) {
+    if (bind.isIncomingOnly() || kControlledOnly) {
+      // §17.6: `controlled-only` forces an incoming-only-shaped main
+      // window so the tree-shaken right pane never carves layout
+      // space.
       tabController.onSelected = (key) {
         if (key == kTabLabelHomePage) {
           windowManager.setSize(getIncomingOnlyHomeSize());

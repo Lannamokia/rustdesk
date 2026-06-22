@@ -1041,6 +1041,21 @@ pub fn get_custom_rendezvous_server(custom: String) -> String {
     if !config::PROD_RENDEZVOUS_SERVER.read().unwrap().is_empty() {
         return config::PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
     }
+    // vhd-machine-auth-bridge §1.2b: when build.rs injected `HBBS_HOST` into
+    // `RENDEZVOUS_SERVERS[0]` via `cargo:rustc-env=RUSTDESK_RENDEZVOUS_SERVER`
+    // (see libs/hbb_common/src/config.rs:185), treat that as a self-hosted
+    // server, not the public one. Without this, `using_public_server()`
+    // returns true even when the binary was built against a private hbbs,
+    // and `src/client.rs::get_option_message` clamps `custom_fps` to 30 and
+    // `custom_image_quality` to 100 (the `allow_more` check at line 2286).
+    // The legacy fallback `"rs-ny.rustdesk.com"` is the upstream public
+    // server — keep returning empty in that case so feature-off parity
+    // with upstream RustDesk is preserved.
+    if let Some(injected) = config::RENDEZVOUS_SERVERS.first().copied() {
+        if !injected.is_empty() && injected != "rs-ny.rustdesk.com" {
+            return injected.to_owned();
+        }
+    }
     "".to_owned()
 }
 

@@ -105,10 +105,22 @@ pub fn verify2fa(code: String) -> bool {
     false
 }
 
+#[cfg(not(any(feature = "controlled-only", feature = "vhd-bridge")))]
 pub fn get_2fa(raw: Option<String>) -> Option<TOTP> {
     TOTPInfo::from_str(&raw.unwrap_or(Config::get_option("2fa")))
         .map(|x| Some(x))
         .unwrap_or_default()
+}
+
+// vhd-machine-auth-bridge: Requirement 21.1 — under `controlled-only` /
+// `vhd-bridge` the 2FA path is explicitly disabled at the source. Returning
+// `None` here keeps `Connection::require_2fa` permanently `None`, so the
+// `REQUIRE_2FA` branch in `send_logon_response_and_keep_alive` is unreachable
+// and the `LOGIN_MSG_2FA_WRONG` / `REQUIRE_2FA` literals are not linked into
+// the controlled-only build through this call site.
+#[cfg(any(feature = "controlled-only", feature = "vhd-bridge"))]
+pub fn get_2fa(_raw: Option<String>) -> Option<TOTP> {
+    None
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -201,4 +213,20 @@ pub fn get_chatid_telegram(bot_token: &str) -> ResultType<Option<String>> {
     }
 
     Ok(chat_id)
+}
+#[cfg(test)]
+mod tests {
+    // vhd-machine-auth-bridge: Requirement 21.1 — when the controlled-only or
+    // vhd-bridge feature is enabled, `get_2fa` MUST collapse to a stub that
+    // unconditionally returns `None` so that `Connection::require_2fa` stays
+    // `None` for the lifetime of the process and `REQUIRE_2FA` is unreachable.
+    #[cfg(any(feature = "controlled-only", feature = "vhd-bridge"))]
+    #[test]
+    fn get_2fa_returns_none_under_controlled_only_or_vhd_bridge() {
+        assert!(super::get_2fa(None).is_none());
+        assert!(super::get_2fa(Some(String::new())).is_none());
+        // Even a plausibly well-formed payload must be ignored under the
+        // feature-on flavor; the stub never inspects its argument.
+        assert!(super::get_2fa(Some("anything".to_owned())).is_none());
+    }
 }
